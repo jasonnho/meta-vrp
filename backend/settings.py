@@ -3,8 +3,8 @@ from dataclasses import dataclass
 @dataclass
 class Settings:
     # data paths
-    DATA_NODES_PATH: str = "data/nodes.sample.csv"
-    DATA_MATRIX_PATH: str = "data/time_matrix.sample.csv"
+    DATA_NODES_PATH: str = "data/nodes.csv"
+    DATA_MATRIX_PATH: str = "data/time_matrix.csv"
 
     # fixed operational params (bisa kamu ubah kapan saja)
     DEPOT_ID: str = "D0"

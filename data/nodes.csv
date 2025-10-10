@@ -1,0 +1,5 @@
+id,name,lat,lon,type,demand_liters,service_min
+D0,Depot,-7.28,112.75,depot,0,0
+P1,Park 1,-7.281,112.751,park,1200,5
+P2,Park 2,-7.282,112.752,park,1800,5
+R1,Refill 1,-7.284,112.754,refill,0,15
