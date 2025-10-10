@@ -1,36 +1,46 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from .schemas import OptimizeRequest, OptimizeResponse, RouteResult
+from .settings import settings
+from .engine.data import load_nodes_csv, load_time_matrix_csv
 
 app = FastAPI(title="Meta-VRP API", version="0.1")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], allow_credentials=True,
+    allow_methods=["*"], allow_headers=["*"],
+)
 
 @app.get("/health")
 def health_check():
     return {"status": "ok", "message": "FastAPI backend running"}
 
-from fastapi.middleware.cors import CORSMiddleware
+@app.post("/optimize", response_model=OptimizeResponse)
+def optimize(req: OptimizeRequest):
+    nodes = load_nodes_csv(settings.DATA_NODES_PATH)
+    ids_sorted = sorted(nodes.keys())
+    tm = load_time_matrix_csv(settings.DATA_MATRIX_PATH, ids_sorted)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],   # sementara dibuka semua; nanti dibatasi ke origin React kamu
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    # validasi input user
+    if not req.selected_node_ids:
+        raise HTTPException(status_code=400, detail="selected_node_ids tidak boleh kosong")
+    for nid in req.selected_node_ids:
+        if nid not in nodes:
+            raise HTTPException(status_code=400, detail=f"Unknown node id: {nid}")
+        if nodes[nid].type != "park":
+            raise HTTPException(status_code=400, detail=f"{nid} bukan type=park")
 
-from pydantic import BaseModel
-from typing import List
+    if settings.DEPOT_ID not in nodes or nodes[settings.DEPOT_ID].type != "depot":
+        raise HTTPException(status_code=500, detail="Invalid DEPOT_ID in settings")
 
-class OptimizeRequest(BaseModel):
-    selected_node_ids: List[str]
-    depot_id: str
-    num_vehicles: int = 2
-    vehicle_capacity_liters: float = 5000.0
-
-@app.post("/optimize")
-def optimize_stub(req: OptimizeRequest):
-    return {
-        "message": "stub ok",
-        "selected": req.selected_node_ids,
-        "depot": req.depot_id,
-        "num_vehicles": req.num_vehicles,
-        "capacity": req.vehicle_capacity_liters
-    }
+    # BELUM solve beneran — stub dulu
+    return OptimizeResponse(
+        objective_time_min=0.0,
+        vehicle_used=min(req.num_vehicles, 1),
+        routes=[],
+        diagnostics={
+            "depot_id": settings.DEPOT_ID,
+            "nodes_loaded": len(nodes),
+            "matrix_size": len(ids_sorted),
+        },
+    )
