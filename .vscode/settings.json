@@ -1,0 +1,10 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "ms-python.black-formatter",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.diagnosticMode": "workspace",
+  "python.formatting.provider": "none",
+  "ruff.lint.args": ["--fix"],
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true
+}
