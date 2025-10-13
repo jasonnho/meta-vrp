@@ -7,7 +7,7 @@ class Settings:
     DATA_MATRIX_PATH: str = "data/time_matrix.csv"
 
     # fixed operational params (bisa kamu ubah kapan saja)
-    DEPOT_ID: str = "D0"
+    DEPOT_ID: str = "0"
     VEHICLE_CAPACITY_LITERS: float = 5000.0
     ALLOW_REFILL: bool = True
     REFILL_SERVICE_MIN: float = 15.0
