@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Tuple  # ⬅️ tambah Tuple
 import pandas as pd
 import numpy as np
 
@@ -22,28 +22,35 @@ class TimeMatrix:
     def travel(self, a: str, b: str) -> float:
         return float(self.M[self.index[a], self.index[b]])
 
-def load_nodes_csv(path: str) -> Dict[str, Node]:
+def load_nodes_csv(path: str) -> Tuple[Dict[str, Node], List[str]]:  # ⬅️ return ids_in_order juga
     df = pd.read_csv(path)
-    required = {"id","name","lat","lon","type","demand_liters","service_min"}
+    required = {"id", "name", "lat", "lon", "type", "demand_liters", "service_min"}
     missing = required - set(df.columns)
     if missing:
         raise ValueError(f"nodes.csv missing columns: {missing}")
 
     nodes: Dict[str, Node] = {}
+    ids_in_order: List[str] = []
+
     for _, r in df.iterrows():
-        nid = str(r["id"])
-        nodes[nid] = Node(
+        nid = str(r["id"]).strip()                 # ⬅️ jadikan string + trim
+        ntype = str(r["type"]).strip().lower()     # ⬅️ trim + lower
+        node = Node(
             id=nid,
-            name=str(r["name"]),
+            name=str(r["name"]).strip(),
             lat=float(r["lat"]),
             lon=float(r["lon"]),
-            type=str(r["type"]).lower(),
+            type=ntype,
             demand_liters=float(r["demand_liters"]),
             service_min=float(r["service_min"]),
         )
+        nodes[nid] = node
+        ids_in_order.append(nid)
+
     if not any(n.type == "depot" for n in nodes.values()):
         raise ValueError("nodes.csv must contain at least one node with type=depot")
-    return nodes
+
+    return nodes, ids_in_order
 
 def load_time_matrix_csv(path: str, ids_in_order: List[str]) -> TimeMatrix:
     M = pd.read_csv(path, header=None).to_numpy(dtype=float)
