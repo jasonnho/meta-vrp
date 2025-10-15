@@ -44,7 +44,7 @@ def greedy_construct(
     for _ in range(num_vehicles):
         route = [depot_id]
         cur = depot_id
-        rem = vehicle_capacity
+        rem = 0
 
         # Stall guard untuk jaga-jaga
         MAX_ITERS = 1_000_000

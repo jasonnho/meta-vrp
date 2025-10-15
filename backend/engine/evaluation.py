@@ -27,7 +27,7 @@ def load_profile_liters(
     route: List[str], nodes: Dict[str, Node], vehicle_capacity: float
 ) -> List[float]:
     """Sisa kapasitas setelah mengunjungi tiap node dalam route (mulai dari depot)."""
-    rem = vehicle_capacity
+    rem = 0
     profile: List[float] = []
     for nid in route:
         n = nodes[nid]
