@@ -16,6 +16,7 @@ from .utils import (
     SimulatedAnnealing,
     TabuList,
     weighted_choice,
+    ensure_all_routes_capacity,
 )
 
 DestroyOp = Callable[
@@ -109,12 +110,8 @@ def alns_optimize(
     def objective(routes: List[List[str]]) -> float:
         # Pakai makespan biar mesin terdorong pakai banyak kendaraan (selesai lebih cepat)
         base = makespan_minutes(routes, nodes, tm)
-        # Selalu inisialisasi overload agar tidak UnboundLocalError
-        overload = 0.0
-        # kalau nanti mau penalti kapasitas beneran, hitung overload total di sini
-        # if cfg.lambda_capacity > 0:
-        #     overload = compute_total_overload(routes, nodes, vehicle_capacity, refill_ids)
-        return base + cfg.lambda_capacity * overload
+        secondary = total_time_minutes(routes, nodes, tm)
+        return base + 1e-3 * secondary  # epsilon kecil untuk meratakan
 
     # init
     best = deepcopy_routes(init_routes)
@@ -171,7 +168,9 @@ def alns_optimize(
                     "depot_id": depot_id,
                 },
             )
-
+        repaired, _ins = ensure_all_routes_capacity(
+            repaired, nodes, vehicle_capacity, refill_ids, tm, depot_id
+        )
         new_cost = objective(repaired)
         delta = new_cost - current_cost
 

@@ -14,6 +14,7 @@ from .engine.evaluation import (
     total_time_minutes,
     route_time_minutes,
     load_profile_liters,
+    capacity_trace_and_violations,
 )
 from .engine.evaluation import (
     total_time_minutes,
@@ -23,6 +24,7 @@ from .engine.evaluation import (
 )
 from .engine.improve import improve_routes
 from .engine.alns import alns_optimize, ALNSConfig
+from .engine.utils import ensure_all_routes_capacity
 
 import time
 import logging
@@ -155,27 +157,18 @@ def split_route_into_k_by_load(
     k: int,
     depot_id: str,
 ) -> List[List[str]]:
-    """
-    Bagi rute panjang menjadi k rute yang kira-kira seimbang berdasarkan akumulasi demand.
-    Tidak memotong di node depot/refill. Sederhana tapi efektif sebagai post-processor.
-    """
     if k <= 1 or len(route) <= 2:
         return [route[:]]
 
-    # Kumpulkan indeks kandidat potong (park saja)
     parks_idx = [i for i in range(1, len(route) - 1) if nodes[route[i]].type == "park"]
     if len(parks_idx) < k - 1:
-        # tidak cukup titik potong, kembalikan rute apa adanya
         return [route[:]]
 
-    # target load per potongan ~ total_demand/k
     total_demand = sum(nodes[route[i]].demand_liters for i in parks_idx)
     if total_demand <= 0:
         return [route[:]]
 
     target = total_demand / k
-
-    # tentukan titik potong terdekat ke target kumulatif
     cuts = []
     acc = 0.0
     next_target = target
@@ -187,19 +180,44 @@ def split_route_into_k_by_load(
         if len(cuts) >= k - 1:
             break
 
-    # rakit potongan rute (selalu dengan depot di ujung)
+    def sanitize(seg: List[str]) -> List[str]:
+        # 1) remove consecutive duplicates
+        cleaned = [seg[0]]
+        for nid in seg[1:]:
+            if nid != cleaned[-1]:
+                cleaned.append(nid)
+        # 2) drop refill right after depot
+        if (
+            len(cleaned) >= 3
+            and cleaned[0] == depot_id
+            and nodes[cleaned[1]].type == "refill"
+        ):
+            cleaned.pop(1)
+        # 3) drop refill right before depot
+        if (
+            len(cleaned) >= 3
+            and cleaned[-1] == depot_id
+            and nodes[cleaned[-2]].type == "refill"
+        ):
+            cleaned.pop(-2)
+        # 4) if no parks left, return empty (caller will filter)
+        has_park = any(nodes[n].type == "park" for n in cleaned[1:-1])
+        return cleaned if has_park and len(cleaned) > 2 else []
+
     segments = []
     prev = 0
     for cut in cuts:
         seg = [depot_id] + route[prev + 1 : cut + 1] + [depot_id]
-        if len(seg) > 2:
+        seg = sanitize(seg)
+        if seg:
             segments.append(seg)
         prev = cut
     seg = [depot_id] + route[prev + 1 : -1] + [depot_id]
-    if len(seg) > 2:
+    seg = sanitize(seg)
+    if seg:
         segments.append(seg)
 
-    # kalau segmennya kurang dari k (karena potongan berdekatan), tambahkan rute kosong minimal
+    # pad dengan rute kosong minimal kalau masih kurang (jarang kejadian)
     while len(segments) < k:
         segments.append([depot_id, depot_id])
 
@@ -403,12 +421,24 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         routes,
         nodes_exp,
         tm_exp,
+        vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,  # ⬅️ baru
+        refill_ids=refill_ids,  # ⬅️ baru
+        depot_id=depot_id,  # ⬅️ baru
         time_limit_sec=improv_time,
         max_no_improve=10,
     )
     t_impr1 = time.perf_counter()
     improv_dur = t_impr1 - t_impr0
     log.info("IMPROVE done in %.3fs", improv_dur)
+
+    routes, _final_ins = ensure_all_routes_capacity(
+        routes,
+        nodes_exp,
+        settings.VEHICLE_CAPACITY_LITERS,
+        refill_ids,
+        tm_exp,
+        depot_id,
+    )
 
     # 8) EVALUATE (pakai nodes_exp, tm_exp)
     obj_time = makespan_minutes(routes, nodes_exp, tm_exp)
@@ -427,6 +457,28 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             )
         )
     t_eval = time.perf_counter()
+
+    route_refills = []
+    for r in routes:
+        refill_pos = [i for i, nid in enumerate(r) if nodes_exp[nid].type == "refill"]
+        route_refills.append({"sequence": r, "refill_indices": refill_pos})
+
+    cap_diag = []
+    for vid, r in enumerate(routes):
+        trace, viol = capacity_trace_and_violations(
+            r, nodes_exp, settings.VEHICLE_CAPACITY_LITERS
+        )
+        if viol:
+            cap_diag.append(
+                {
+                    "vehicle_id": vid,
+                    "sequence": r,
+                    "violations": [
+                        {"idx": i, "node": nid, "liters_short": short}
+                        for (i, nid, short) in viol
+                    ],
+                }
+            )
 
     return OptimizeResponse(
         objective_time_min=obj_time,
@@ -455,6 +507,8 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
                 "lambda_capacity": alns_cfg.lambda_capacity,
                 "k_remove": [alns_cfg.k_remove_min, alns_cfg.k_remove_max],
             },
+            "refill_positions": route_refills,
+            "capacity_violations": cap_diag,
         },
     )
 
