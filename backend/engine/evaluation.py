@@ -47,3 +47,25 @@ def makespan_minutes(routes, nodes, tm):
         return 0.0
     per_route = [route_time_minutes(r, nodes, tm) for r in routes if len(r) > 1]
     return max(per_route) if per_route else 0.0
+
+
+def capacity_trace_and_violations(route, nodes, vehicle_capacity):
+    """
+    Kembalikan:
+      - trace_strict: sisa kapasitas setelah tiap node (BOLEH negatif agar pelanggaran terlihat)
+      - violations: list [(idx, node_id, liters_short)] saat rem < 0 sebelum clamp
+    """
+    rem = vehicle_capacity
+    trace = []
+    violations = []
+    for idx, nid in enumerate(route):
+        n = nodes[nid]
+        if n.type == "refill":
+            rem = vehicle_capacity
+        elif n.type == "park":
+            rem -= n.demand_liters
+            if rem < 0:
+                violations.append((idx, nid, -rem))  # butuh sebanyak ini SEBELUM refill
+        # catat rem apa adanya (bisa negatif)
+        trace.append(rem)
+    return trace, violations

@@ -86,3 +86,123 @@ class TabuList:
             if it in self.set_:
                 return True
         return False
+
+
+# utils.py (tambahkan)
+from typing import List, Dict, Tuple
+from .data import Node, TimeMatrix
+
+
+def _nearest_refill_delta(
+    prev_id: str, park_id: str, refill_ids: List[str], tm: TimeMatrix
+) -> str:
+    """Pilih refill r yang meminimalkan delta travel lokal (prev->r->park vs prev->park)."""
+    best_r = None
+    best_delta = float("inf")
+    for r in refill_ids:
+        delta = (
+            tm.travel(prev_id, r) + tm.travel(r, park_id) - tm.travel(prev_id, park_id)
+        )
+        if delta < best_delta:
+            best_delta = delta
+            best_r = r
+    return best_r  # type: ignore
+
+
+def ensure_capacity_with_refills(
+    route: List[str],
+    nodes: Dict[str, Node],
+    vehicle_capacity: float,
+    refill_ids: List[str],
+    tm: TimeMatrix,
+    depot_id: str,
+) -> Tuple[List[str], int]:
+    """
+    Scan rute kiri→kanan. Jika ketemu park yang butuh > sisa rem, sisipkan refill terdekat tepat sebelum park tsb.
+    Kembalikan (route_fixed, n_refill_inserted).
+    """
+    if not route or len(route) <= 2:
+        return route[:], 0
+
+    fixed = route[:]  # copy
+    inserted = 0
+
+    i = 0
+    rem = vehicle_capacity
+    while i < len(fixed):
+        nid = fixed[i]
+        n = nodes[nid]
+
+        if n.type == "refill":
+            rem = vehicle_capacity
+            # Hindari refill berurutan/di samping depot
+            if i > 0 and fixed[i - 1] == depot_id:
+                # refill tepat setelah depot: drop
+                fixed.pop(i)
+                inserted -= 1 if inserted > 0 else 0
+                continue
+            if i + 1 < len(fixed) and fixed[i + 1] == depot_id:
+                # refill tepat sebelum depot: drop
+                fixed.pop(i)
+                inserted -= 1 if inserted > 0 else 0
+                continue
+            i += 1
+            continue
+
+        if n.type == "park":
+            if n.demand_liters > rem:
+                # perlu refill sebelum park ini
+                if not refill_ids:
+                    # tidak bisa diperbaiki
+                    i += 1
+                    continue
+                prev_id = fixed[i - 1] if i > 0 else depot_id
+                r = _nearest_refill_delta(prev_id, nid, refill_ids, tm)
+                if r is None:
+                    i += 1
+                    continue
+                fixed.insert(i, r)
+                rem = vehicle_capacity  # reset setelah refill
+                inserted += 1
+                # Jangan maju index; evaluasi park yang sama lagi
+                continue
+            else:
+                rem -= n.demand_liters
+        # depot: biarkan
+        i += 1
+
+    # Bersihkan refill duplikat berurutan
+    j = 1
+    while j < len(fixed):
+        if nodes[fixed[j]].type == "refill" and fixed[j] == fixed[j - 1]:
+            fixed.pop(j)
+        else:
+            j += 1
+
+    # Trim refill di [depot, ...] dan [..., depot]
+    if len(fixed) >= 3 and fixed[0] == depot_id and nodes[fixed[1]].type == "refill":
+        fixed.pop(1)
+    if len(fixed) >= 3 and fixed[-1] == depot_id and nodes[fixed[-2]].type == "refill":
+        fixed.pop(-2)
+
+    return fixed, inserted
+
+
+def ensure_all_routes_capacity(
+    routes: List[List[str]],
+    nodes: Dict[str, Node],
+    vehicle_capacity: float,
+    refill_ids: List[str],
+    tm: TimeMatrix,
+    depot_id: str,
+) -> Tuple[List[List[str]], int]:
+    """Apply ensure_capacity_with_refills ke semua rute. Return (routes_fixed, total_refills_inserted)."""
+    total_ins = 0
+    out = []
+    for r in routes:
+        rr, ins = ensure_capacity_with_refills(
+            r, nodes, vehicle_capacity, refill_ids, tm, depot_id
+        )
+        out.append(rr)
+        total_ins += ins
+    return out, total_ins
