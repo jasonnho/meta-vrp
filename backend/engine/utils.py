@@ -128,7 +128,7 @@ def ensure_capacity_with_refills(
     inserted = 0
 
     i = 0
-    rem = vehicle_capacity
+    rem = 0
     while i < len(fixed):
         nid = fixed[i]
         n = nodes[nid]
