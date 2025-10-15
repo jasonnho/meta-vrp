@@ -20,11 +20,19 @@ from .utils import (
 )
 
 DestroyOp = Callable[
-    [List[List[str]], Dict[str, Node], TimeMatrix, int],
+    [List[List[str]], Dict[str, Node], TimeMatrix, int, Dict[str, List[str]]],
     Tuple[List[str], List[List[str]]],
 ]
 RepairOp = Callable[
-    [List[List[str]], List[str], Dict[str, Node], TimeMatrix, dict], List[List[str]]
+    [
+        List[List[str]],
+        List[str],
+        Dict[str, Node],
+        TimeMatrix,
+        dict,
+        Optional[Dict[str, List[str]]],
+    ],
+    List[List[str]],
 ]
 
 
@@ -69,6 +77,7 @@ def alns_optimize(
     refill_ids: List[str],
     depot_id: str,
     allow_refill: bool,
+    groups: Dict[str, List[str]],
     cfg: Optional[ALNSConfig] = None,
 ) -> List[List[str]]:
     """
@@ -135,7 +144,7 @@ def alns_optimize(
         k_remove = random.randint(cfg.k_remove_min, cfg.k_remove_max)
 
         # --- DESTROY ---
-        removed, partial = d_op(current, nodes, tm, k_remove)
+        removed, partial = d_op(current, nodes, tm, k_remove, groups)
         if cfg.use_tabu_on_removed_nodes and tabu.contains_any(removed):
             # destroy ini menghasilkan set yg tabu → skip
             continue
@@ -167,6 +176,7 @@ def alns_optimize(
                     "allow_refill": allow_refill,
                     "depot_id": depot_id,
                 },
+                groups,
             )
         repaired, _ins = ensure_all_routes_capacity(
             repaired, nodes, vehicle_capacity, refill_ids, tm, depot_id
@@ -235,26 +245,43 @@ def destroy_random(
     nodes: Dict[str, Node],
     tm: TimeMatrix,
     k: int,
+    groups: Dict[str, List[str]],
 ) -> Tuple[List[str], List[List[str]]]:
     """
-    Hapus k node 'park' acak. Kembalikan (removed_nodes, partial_routes).
+    Random removal (group-aware): pilih beberapa seed park acak,
+    lalu hapus SELURUH anggota grupnya.
     """
+    # kumpulkan semua park
     parks = []
     for r in routes:
         parks.extend([nid for nid in r[1:-1] if nodes[nid].type == "park"])
-    k = min(k, len(parks))
-    removed = set(random.sample(parks, k)) if k > 0 else set()
+    if not parks or k <= 0:
+        return [], routes
 
+    # pilih seed acak lalu expand ke seluruh grup sampai >= k part
+    random.shuffle(parks)
+    removed_set = set()
+    for nid in parks:
+        base = nid.split("#")[0]
+        for p in groups.get(base, [nid]):
+            removed_set.add(p)
+        if sum(1 for p in removed_set if nodes[p].type == "park") >= k:
+            break
+
+    # bangun routes baru tanpa semua part yang terhapus
     new_routes = []
     for r in routes:
-        new_r = [nid for nid in r if nid not in removed or nodes[nid].type != "park"]
-        # pastikan depot tetap di ujung
-        if new_r[0] != r[0]:
+        new_r = [
+            nid for nid in r if not (nid in removed_set and nodes[nid].type == "park")
+        ]
+        # jaga depot di ujung
+        if new_r and new_r[0] != r[0]:
             new_r.insert(0, r[0])
-        if new_r[-1] != r[-1]:
+        if new_r and new_r[-1] != r[-1]:
             new_r.append(r[-1])
         new_routes.append(new_r)
-    return list(removed), new_routes
+
+    return list(removed_set), new_routes
 
 
 def destroy_shaw(
@@ -262,35 +289,47 @@ def destroy_shaw(
     nodes: Dict[str, Node],
     tm: TimeMatrix,
     k: int,
+    groups: Dict[str, List[str]],
 ) -> Tuple[List[str], List[List[str]]]:
     """
-    Shaw removal: pilih satu seed park, lalu hapus tetangga dekat (berdasar jarak/waktu).
+    Shaw removal (group-aware): pilih 1 seed park, urutkan tetangga paling dekat,
+    lalu hapus blok-blok grup hingga mencapai ~k part.
     """
     parks = []
     for r in routes:
         parks.extend([nid for nid in r[1:-1] if nodes[nid].type == "park"])
-    if not parks:
+    if not parks or k <= 0:
         return [], routes
 
     seed = random.choice(parks)
 
-    # skor kemiripan = travel time yang kecil → lebih 'mirip'
     def proximity(p):
         return tm.travel(seed, p) + tm.travel(p, seed)
 
-    ordered = sorted([p for p in parks if p != seed], key=proximity)
-    removed = [seed] + ordered[: max(0, k - 1)]
-    # hapus dari rute
+    ordered = [p for p in parks if p != seed]
+    ordered.sort(key=proximity)
+
+    removed_set = set()
+    # mulai dari seed → hapus seluruh grupnya
+    for nid in [seed] + ordered:
+        base = nid.split("#")[0]
+        for part in groups.get(base, [nid]):
+            removed_set.add(part)
+        if sum(1 for p in removed_set if nodes[p].type == "park") >= k:
+            break
+
+    # rebuild routes
     new_routes = []
-    rem_set = set(removed)
     for r in routes:
-        new_r = [nid for nid in r if not (nid in rem_set and nodes[nid].type == "park")]
-        if new_r[0] != r[0]:
+        new_r = [
+            nid for nid in r if not (nid in removed_set and nodes[nid].type == "park")
+        ]
+        if new_r and new_r[0] != r[0]:
             new_r.insert(0, r[0])
-        if new_r[-1] != r[-1]:
+        if new_r and new_r[-1] != r[-1]:
             new_r.append(r[-1])
         new_routes.append(new_r)
-    return removed, new_routes
+    return list(removed_set), new_routes
 
 
 def destroy_worst(
@@ -298,10 +337,11 @@ def destroy_worst(
     nodes: Dict[str, Node],
     tm: TimeMatrix,
     k: int,
+    groups: Dict[str, List[str]],
 ) -> Tuple[List[str], List[List[str]]]:
     """
-    Worst removal: hapus park dengan kontribusi biaya lokal tertinggi.
-    Aproksimasi kontribusi: (a->p + p->b - a->b) + service(p).
+    Worst removal (group-aware): rangking part berdasarkan kontribusi lokal terbesar,
+    lalu hapus seluruh grup part tersebut sampai ~k part terhapus.
     """
     candidates: List[Tuple[str, float, int, int]] = []  # (nid, score, r_idx, pos)
     for ri, r in enumerate(routes):
@@ -317,26 +357,32 @@ def destroy_worst(
                 + nodes[nid].service_min
             )
             candidates.append((nid, score, ri, i))
+
+    if not candidates or k <= 0:
+        return [], routes
+
     candidates.sort(key=lambda x: x[1], reverse=True)
-    removed = set()
-    marks = set()
-    for nid, _, ri, i in candidates:
-        if len(removed) >= k:
+
+    removed_set = set()
+    for nid, _, _, _ in candidates:
+        base = nid.split("#")[0]
+        for part in groups.get(base, [nid]):
+            removed_set.add(part)
+        if sum(1 for p in removed_set if nodes[p].type == "park") >= k:
             break
-        if (ri, i) in marks:
-            continue
-        removed.add(nid)
-        marks.add((ri, i))
 
     new_routes = []
     for r in routes:
-        new_r = [nid for nid in r if not (nid in removed and nodes[nid].type == "park")]
-        if new_r[0] != r[0]:
+        new_r = [
+            nid for nid in r if not (nid in removed_set and nodes[nid].type == "park")
+        ]
+        if new_r and new_r[0] != r[0]:
             new_r.insert(0, r[0])
-        if new_r[-1] != r[-1]:
+        if new_r and new_r[-1] != r[-1]:
             new_r.append(r[-1])
         new_routes.append(new_r)
-    return list(removed), new_routes
+
+    return list(removed_set), new_routes
 
 
 # =========================
@@ -344,56 +390,59 @@ def destroy_worst(
 # =========================
 
 
-def repair_greedy(
-    routes: List[List[str]],
-    removed: List[str],
-    nodes: Dict[str, Node],
-    tm: TimeMatrix,
-    ctx: dict,
-) -> List[List[str]]:
-    """
-    Sisipkan node secara greedy di posisi dengan delta biaya minimal.
-    TODO: jika kapasitas terlanggar, selipkan refill (bila diizinkan).
-    """
+from .utils import best_insertion_index_for_node
+
+
+def repair_greedy(routes, removed, nodes, tm, ctx, groups=None):
     vehicle_capacity = ctx["vehicle_capacity"]
     refill_ids = ctx["refill_ids"]
     allow_refill = ctx["allow_refill"]
+    depot_id = ctx["depot_id"]
 
-    current = deepcopy_routes(routes)
-    parks = [nid for nid in removed if nodes[nid].type == "park"]
+    current = [r[:] for r in routes]
+    # kelompokkan per base
+    by_base: Dict[str, List[str]] = {}
+    for nid in removed:
+        if nodes[nid].type != "park":
+            continue
+        base = nid.split("#")[0]
+        by_base.setdefault(base, [])
+        by_base[base].append(nid)
+    # sort stabil
+    for k in by_base:
+        by_base[k].sort()
 
-    for p in parks:
+    for base, parts in by_base.items():
+        # pilih rute target terbaik: coba posisi terbaik untuk part pertama pada tiap rute
+        best_route = 0
         best_delta = float("inf")
-        best_where: Optional[Tuple[int, int]] = None  # (r_idx, pos)
-
+        best_pos = 1
+        p0 = parts[0]
         for ri, r in enumerate(current):
-            # coba sisip di antara (j-1, j)
-            for j in range(1, len(r)):  # sisip sebelum j
-                a, b = r[j - 1], r[j]
-                delta = (
-                    tm.travel(a, p)
-                    + tm.travel(p, b)
-                    - tm.travel(a, b)
-                    + nodes[p].service_min
-                )
+            j = best_insertion_index_for_node(r, p0, nodes, tm)
+            a, b = r[j - 1], r[j]
+            delta = (
+                tm.travel(a, p0)
+                + tm.travel(p0, b)
+                - tm.travel(a, b)
+                + nodes[p0].service_min
+            )
+            if delta < best_delta:
+                best_delta = delta
+                best_route = ri
+                best_pos = j
+        # sisipkan semua parts ke rute best_route
+        tgt = current[best_route]
+        tgt.insert(best_pos, p0)
+        # sisipkan sisa anggota satu per satu (posisi terbaik tiap langkah)
+        for pk in parts[1:]:
+            j = best_insertion_index_for_node(tgt, pk, nodes, tm)
+            tgt.insert(j, pk)
 
-                # TODO: cek kapasitas r setelah sisip p; jika overload dan allow_refill,
-                # coba sisip refill di sekitar posisi yang memberi delta minimal.
-                # Jika tidak feasible dan tak bisa diperbaiki, skip kandidat ini.
-
-                if delta < best_delta:
-                    best_delta = delta
-                    best_where = (ri, j)
-
-        if best_where is None:
-            # fallback: buat rute baru (jika diperbolehkan) - tapi di baseline kita pertahankan jumlah rute
-            # di sini kita masukkan ke rute dengan depot saja (terpendek)
-            lens = [(ri, len(r)) for ri, r in enumerate(current)]
-            ri = min(lens, key=lambda x: x[1])[0]
-            current[ri].insert(1, p)
-        else:
-            ri, j = best_where
-            current[ri].insert(j, p)
+        # kapasitas safety untuk seluruh solusi (atau minimal rute target)
+        current, _ = ensure_all_routes_capacity(
+            current, nodes, vehicle_capacity, refill_ids, tm, depot_id
+        )
 
     return current
 
@@ -404,55 +453,83 @@ def repair_regret2(
     nodes: Dict[str, Node],
     tm: TimeMatrix,
     ctx: dict,
+    groups: Optional[Dict[str, List[str]]] = None,
 ) -> List[List[str]]:
     """
-    Regret-2 insertion: pilih node dengan (delta2 - delta1) terbesar, lalu sisip di posisi terbaiknya.
-    TODO: tambahkan feasibilitas kapasitas + sisip refill jika perlu.
+    Regret-2 insertion (group-aware):
+    - Kelompokkan removed per base_id.
+    - Untuk tiap grup, pilih rute target pakai regret-2 berdasarkan anggota pertama.
+    - Sisipkan semua anggota grup ke rute target (posisi terbaik per langkah).
+    - Setelah tiap grup, jalankan capacity repair.
     """
+    from .utils import ensure_all_routes_capacity, best_insertion_index_for_node
+
     vehicle_capacity = ctx["vehicle_capacity"]
     refill_ids = ctx["refill_ids"]
-    allow_refill = ctx["allow_refill"]
+    depot_id = ctx["depot_id"]
 
     current = deepcopy_routes(routes)
-    parks = [nid for nid in removed if nodes[nid].type == "park"]
 
-    while parks:
-        # hitung 2 posisi terbaik untuk tiap p
-        best_info = []
-        for p in parks:
+    # kelompokkan per base
+    by_base: Dict[str, List[str]] = {}
+    for nid in removed:
+        if nodes[nid].type != "park":
+            continue
+        base = nid.split("#")[0]
+        by_base.setdefault(base, [])
+        by_base[base].append(nid)
+    # sort stabil
+    for k in by_base:
+        by_base[k].sort()
+
+    # urutan proses grup: boleh acak/urut; di sini urut alfabetis base → stabil
+    for base in sorted(by_base.keys()):
+        parts = by_base[base]
+        p0 = parts[0]
+
+        # hitung dua posisi terbaik untuk p0 di tiap rute
+        cand_per_route: List[Tuple[float, float, int, int]] = []  # (d1,d2,ri,j_best)
+        for ri, r in enumerate(current):
             deltas = []
             spots = []
-            for ri, r in enumerate(current):
-                for j in range(1, len(r)):
-                    a, b = r[j - 1], r[j]
-                    delta = (
-                        tm.travel(a, p)
-                        + tm.travel(p, b)
-                        - tm.travel(a, b)
-                        + nodes[p].service_min
-                    )
+            for j in range(1, len(r)):
+                a, b = r[j - 1], r[j]
+                delta = (
+                    tm.travel(a, p0)
+                    + tm.travel(p0, b)
+                    - tm.travel(a, b)
+                    + nodes[p0].service_min
+                )
+                deltas.append(delta)
+                spots.append(j)
+            if not deltas:
+                continue
+            order = sorted(range(len(deltas)), key=lambda idx: deltas[idx])
+            d1 = deltas[order[0]]
+            j1 = spots[order[0]]
+            d2 = deltas[order[1]] if len(order) >= 2 else (d1 + 1e6)
+            cand_per_route.append((d1, d2, ri, j1))
 
-                    # TODO: cek kapasitas+refill feasibility; jika tidak feasible → continue
+        if not cand_per_route:
+            # fallback: rute terpendek
+            target_ri = min(range(len(current)), key=lambda i: len(current[i]))
+            j_best = 1
+        else:
+            # pilih rute dengan regret terbesar (d2 - d1)
+            cand_per_route.sort(key=lambda x: (x[1] - x[0]), reverse=True)
+            d1, d2, target_ri, j_best = cand_per_route[0]
 
-                    deltas.append(delta)
-                    spots.append((ri, j))
-            if deltas:
-                order = sorted(range(len(deltas)), key=lambda idx: deltas[idx])
-                d1 = deltas[order[0]]
-                s1 = spots[order[0]]
-                d2 = deltas[order[1]] if len(order) >= 2 else (d1 + 1e6)
-                best_info.append((p, (d2 - d1), d1, s1))
-        if not best_info:
-            # kalau tidak ada posisi feasible, masukkan secara paksa ke rute terpendek (TODO: repair refill)
-            p = parks.pop()
-            ri = min(range(len(current)), key=lambda i: len(current[i]))
-            current[ri].insert(1, p)
-            continue
+        # sisipkan p0
+        tgt = current[target_ri]
+        tgt.insert(j_best, p0)
+        # sisipkan sisa anggota ke posisi terbaik bertahap
+        for pk in parts[1:]:
+            j = best_insertion_index_for_node(tgt, pk, nodes, tm)
+            tgt.insert(j, pk)
 
-        # pilih p dengan regret terbesar
-        best_info.sort(key=lambda x: x[1], reverse=True)
-        p, _, d1, (ri, j) = best_info[0]
-        current[ri].insert(j, p)
-        parks.remove(p)
+        # perbaiki kapasitas (auto refill)
+        current, _ = ensure_all_routes_capacity(
+            current, nodes, vehicle_capacity, refill_ids, tm, depot_id
+        )
 
     return current

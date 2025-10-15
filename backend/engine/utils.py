@@ -5,6 +5,7 @@ import hashlib
 from collections import deque
 from typing import Iterable, List, Any
 import math
+from .data import Node, TimeMatrix
 
 
 def set_seed(seed: int) -> None:
@@ -195,3 +196,113 @@ def ensure_all_routes_capacity(
         out.append(rr)
         total_ins += ins
     return out, total_ins
+
+
+def build_groups_from_expanded_ids(
+    selected_expanded: List[str],
+) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
+    """
+    Dari id yang sudah di-expand (mis. '25#1','25#2','14'), bangun:
+      - groups: {'25': ['25#1','25#2'], '14': ['14']}   (park non-split tetap 1 anggota)
+      - part_to_group: {'25#1': '25', '25#2': '25', '14': '14'}
+    """
+    groups: Dict[str, List[str]] = {}
+    part_to_group: Dict[str, str] = {}
+    for sid in selected_expanded:
+        base = sid.split("#")[0]
+        groups.setdefault(base, []).append(sid)
+        part_to_group[sid] = base
+    # urutkan anggota tiap grup supaya stabil
+    for k in groups:
+        groups[k].sort()
+    return groups, part_to_group
+
+
+def best_insertion_index_for_node(
+    route: List[str], nid: str, nodes: Dict[str, Node], tm: TimeMatrix
+) -> int:
+    """Cari posisi sisip terbaik (min delta travel + service) untuk node nid di route."""
+    best_j = 1
+    best_delta = float("inf")
+    for j in range(1, len(route)):
+        a, b = route[j - 1], route[j]
+        delta = (
+            tm.travel(a, nid)
+            + tm.travel(nid, b)
+            - tm.travel(a, b)
+            + nodes[nid].service_min
+        )
+        if delta < best_delta:
+            best_delta = delta
+            best_j = j
+    return best_j
+
+
+def ensure_groups_single_vehicle(
+    routes: List[List[str]],
+    groups: Dict[str, List[str]],
+    nodes: Dict[str, Node],
+    tm: TimeMatrix,
+    depot_id: str,
+    vehicle_capacity: float,
+    refill_ids: List[str],
+) -> List[List[str]]:
+    """
+    Pastikan semua anggota grup (base_id) ada di rute yang sama.
+    Jika tersebar, pindahkan minoritas ke rute mayoritas (dominant route) dan sisipkan
+    di posisi terbaik satu per satu. Setelah itu, perbaiki kapasitas (auto-refill).
+    """
+    # indeks: sub_id -> (r_idx, pos)
+    pos_map: Dict[str, Tuple[int, int]] = {}
+    for ri, r in enumerate(routes):
+        for i, nid in enumerate(r):
+            pos_map[nid] = (ri, i)
+
+    new_routes = [r[:] for r in routes]
+
+    for base, parts in groups.items():
+        # Abaikan grup yang bukan 'park' (mis. depot/refill)
+        # asumsikan sub_id yang ada di routes pasti dari selected parks
+        # Kumpulkan rute tempat anggota berada
+        count_by_route: Dict[int, int] = {}
+        member_locs: Dict[str, Tuple[int, int]] = {}
+        for p in parts:
+            if p not in pos_map:
+                continue
+            ri, idx = pos_map[p]
+            member_locs[p] = (ri, idx)
+            count_by_route[ri] = count_by_route.get(ri, 0) + 1
+        if not count_by_route:
+            continue
+        # tentukan rute dominan (terbanyak anggota)
+        target_route = max(count_by_route.items(), key=lambda kv: kv[1])[0]
+
+        # Pindahkan semua anggota yang bukan di target_route
+        for p in parts:
+            if p not in member_locs:
+                continue
+            ri, idx = member_locs[p]
+            if ri == target_route:
+                continue
+            # hapus dari rute lama
+            old = new_routes[ri]
+            # re-locate posisi map untuk rute lama
+            try:
+                idx_real = old.index(p)
+            except ValueError:
+                continue
+            old.pop(idx_real)
+
+            # sisip ke rute target pada posisi terbaik
+            tgt = new_routes[target_route]
+            j = best_insertion_index_for_node(tgt, p, nodes, tm)
+            tgt.insert(j, p)
+
+            # update pos_map yang minimal
+            pos_map[p] = (target_route, j)
+
+    # kapasitas safety pass (auto-refill)
+    fixed, _ = ensure_all_routes_capacity(
+        new_routes, nodes, vehicle_capacity, refill_ids, tm, depot_id
+    )
+    return fixed

@@ -25,6 +25,8 @@ from .engine.evaluation import (
 from .engine.improve import improve_routes
 from .engine.alns import alns_optimize, ALNSConfig
 from .engine.utils import ensure_all_routes_capacity
+from .engine.utils import build_groups_from_expanded_ids
+from .engine.utils import ensure_all_routes_capacity, ensure_groups_single_vehicle
 
 import time
 import logging
@@ -268,6 +270,8 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         nodes_orig, tm_orig, selected_raw, settings.VEHICLE_CAPACITY_LITERS
     )
 
+    groups, part_to_group = build_groups_from_expanded_ids(selected_ids_expanded)
+
     # 4) VALIDASI MATRIX setelah expand (pakai tm_exp)
     n = len(tm_exp.ids)
     tm_shape = getattr(getattr(tm_exp, "M", None), "shape", None)
@@ -405,6 +409,7 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
                 depot_id=depot_id,
                 allow_refill=settings.ALLOW_REFILL,
                 cfg=alns_cfg,
+                groups=groups,
             ),
             timeout_sec=alns_cfg.time_limit_sec + 1.0,  # sedikit buffer
             name="alns_optimize",
@@ -414,6 +419,16 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         log.info("ALNS done in %.3fs", alns_dur)
     else:
         log.info("ALNS skipped (USE_ALNS=%s, time=%.2fs)", USE_ALNS, alns_time)
+
+    routes = ensure_groups_single_vehicle(
+        routes,
+        groups,
+        nodes_exp,
+        tm_exp,
+        depot_id,
+        vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,
+        refill_ids=refill_ids,
+    )
 
     log.info("IMPROVE start (limit=%.1fs)", improv_time)
     t_impr0 = time.perf_counter()
@@ -438,6 +453,17 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         refill_ids,
         tm_exp,
         depot_id,
+    )
+
+    # final safety: satukan grup + kapasitas
+    routes = ensure_groups_single_vehicle(
+        routes,
+        groups,
+        nodes_exp,
+        tm_exp,
+        depot_id,
+        vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,
+        refill_ids=refill_ids,
     )
 
     # 8) EVALUATE (pakai nodes_exp, tm_exp)
@@ -509,6 +535,11 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             },
             "refill_positions": route_refills,
             "capacity_violations": cap_diag,
+            "expanded": {
+                "selected_in": selected_raw,
+                "selected_expanded": selected_ids_expanded,
+                "groups_count": len(groups),  # ⬅️ optional
+            },
         },
     )
 
