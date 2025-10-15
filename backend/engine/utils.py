@@ -135,17 +135,8 @@ def ensure_capacity_with_refills(
 
         if n.type == "refill":
             rem = vehicle_capacity
-            # Hindari refill berurutan/di samping depot
-            if i > 0 and fixed[i - 1] == depot_id:
-                # refill tepat setelah depot: drop
-                fixed.pop(i)
-                inserted -= 1 if inserted > 0 else 0
-                continue
-            if i + 1 < len(fixed) and fixed[i + 1] == depot_id:
-                # refill tepat sebelum depot: drop
-                fixed.pop(i)
-                inserted -= 1 if inserted > 0 else 0
-                continue
+            # (optional) kalau mau, masih boleh buang refill berurutan persis yang sama,
+            # tapi JANGAN pernah buang refill di posisi 1 (setelah depot).
             i += 1
             continue
 
@@ -180,8 +171,6 @@ def ensure_capacity_with_refills(
             j += 1
 
     # Trim refill di [depot, ...] dan [..., depot]
-    if len(fixed) >= 3 and fixed[0] == depot_id and nodes[fixed[1]].type == "refill":
-        fixed.pop(1)
     if len(fixed) >= 3 and fixed[-1] == depot_id and nodes[fixed[-2]].type == "refill":
         fixed.pop(-2)
 
