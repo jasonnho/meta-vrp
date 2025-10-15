@@ -15,10 +15,14 @@ from .engine.evaluation import (
     route_time_minutes,
     load_profile_liters,
 )
+from .engine.evaluation import (
+    total_time_minutes,
+    route_time_minutes,
+    load_profile_liters,
+    makespan_minutes,  #  baru
+)
 from .engine.improve import improve_routes
-
-# NOTE: saat debug, improve dimatikan dulu
-# from .engine.improve import improve_routes
+from .engine.alns import alns_optimize, ALNSConfig
 
 import time
 import logging
@@ -143,6 +147,65 @@ def expand_split_delivery(
     return new_nodes, tm2, expanded_selected
 
 
+# === helper: belah satu rute menjadi K rute berbasis beban ===
+def split_route_into_k_by_load(
+    route: List[str],
+    nodes: Dict[str, Node],
+    vehicle_capacity: float,
+    k: int,
+    depot_id: str,
+) -> List[List[str]]:
+    """
+    Bagi rute panjang menjadi k rute yang kira-kira seimbang berdasarkan akumulasi demand.
+    Tidak memotong di node depot/refill. Sederhana tapi efektif sebagai post-processor.
+    """
+    if k <= 1 or len(route) <= 2:
+        return [route[:]]
+
+    # Kumpulkan indeks kandidat potong (park saja)
+    parks_idx = [i for i in range(1, len(route) - 1) if nodes[route[i]].type == "park"]
+    if len(parks_idx) < k - 1:
+        # tidak cukup titik potong, kembalikan rute apa adanya
+        return [route[:]]
+
+    # target load per potongan ~ total_demand/k
+    total_demand = sum(nodes[route[i]].demand_liters for i in parks_idx)
+    if total_demand <= 0:
+        return [route[:]]
+
+    target = total_demand / k
+
+    # tentukan titik potong terdekat ke target kumulatif
+    cuts = []
+    acc = 0.0
+    next_target = target
+    for i in parks_idx:
+        acc += nodes[route[i]].demand_liters
+        if acc >= next_target - 1e-9:
+            cuts.append(i)
+            next_target += target
+        if len(cuts) >= k - 1:
+            break
+
+    # rakit potongan rute (selalu dengan depot di ujung)
+    segments = []
+    prev = 0
+    for cut in cuts:
+        seg = [depot_id] + route[prev + 1 : cut + 1] + [depot_id]
+        if len(seg) > 2:
+            segments.append(seg)
+        prev = cut
+    seg = [depot_id] + route[prev + 1 : -1] + [depot_id]
+    if len(seg) > 2:
+        segments.append(seg)
+
+    # kalau segmennya kurang dari k (karena potongan berdekatan), tambahkan rute kosong minimal
+    while len(segments) < k:
+        segments.append([depot_id, depot_id])
+
+    return segments
+
+
 def _solve(req: OptimizeRequest) -> OptimizeResponse:
     t0 = time.perf_counter()
 
@@ -181,8 +244,7 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             )
 
     # 3) EXPAND SPLIT-DELIVERY (jika demand > kapasitas)
-    #    Hasil: nodes_exp, tm_exp, selected_ids_expanded
-    from .engine.data import Node, TimeMatrix  # pastikan impor
+    from .engine.data import Node, TimeMatrix  # pastikan impor (local reference)
 
     nodes_exp, tm_exp, selected_ids_expanded = expand_split_delivery(
         nodes_orig, tm_orig, selected_raw, settings.VEHICLE_CAPACITY_LITERS
@@ -250,6 +312,36 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         depot_id,
     )
 
+    # === TIME BUDGET & ALNS CONFIG ===
+    TOTAL_TL = float(getattr(settings, "TIME_LIMIT_SEC", 6.0))
+    ALNS_FRAC = float(getattr(settings, "ALNS_TIME_FRAC", 0.6))  # 60% ke ALNS
+    USE_ALNS = bool(getattr(settings, "USE_ALNS", True))
+    LAMBDA_CAP = float(
+        getattr(settings, "ALNS_LAMBDA_CAPACITY", 0.0)
+    )  # penalti kapasitas (0=off)
+
+    alns_time = max(0.0, TOTAL_TL * ALNS_FRAC)
+    improv_time = max(0.1, TOTAL_TL - alns_time)
+
+    alns_cfg = ALNSConfig(
+        time_limit_sec=alns_time,
+        seed=int(getattr(settings, "ALNS_SEED", 42)),
+        init_temperature=float(getattr(settings, "ALNS_INIT_TEMP", 1_000.0)),
+        cooling_rate=float(getattr(settings, "ALNS_COOLING_RATE", 0.995)),
+        min_temperature=float(getattr(settings, "ALNS_MIN_TEMP", 1e-3)),
+        k_remove_min=int(getattr(settings, "ALNS_K_REMOVE_MIN", 2)),
+        k_remove_max=int(getattr(settings, "ALNS_K_REMOVE_MAX", 8)),
+        score_update_period=int(getattr(settings, "ALNS_SCORE_UPDATE_PERIOD", 25)),
+        tabu_tenure=int(getattr(settings, "ALNS_TABU_TENURE", 20)),
+        use_tabu_on_removed_nodes=bool(
+            getattr(settings, "ALNS_USE_TABU_ON_REMOVED", True)
+        ),
+        lambda_capacity=LAMBDA_CAP,
+        use_construct_as_repair=bool(
+            getattr(settings, "ALNS_USE_CONSTRUCT_AS_REPAIR", False)
+        ),
+    )
+
     # 6) CONSTRUCT (pakai nodes_exp, tm_exp, selected_ids_expanded)
     log.info("CONSTRUCT start")
     routes = run_step(
@@ -269,22 +361,57 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
     t_cons = time.perf_counter()
     log.info("CONSTRUCT done in %.3fs", t_cons - t_val)
 
-    # 7) (Optional) IMPROVE dimatikan dulu
-    log.info("IMPROVE start (limit=%.1fs)", settings.TIME_LIMIT_SEC)
+    if len(routes) == 1 and req.num_vehicles > 1:
+        routes = split_route_into_k_by_load(
+            route=routes[0],
+            nodes=nodes_exp,
+            vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,
+            k=req.num_vehicles,
+            depot_id=depot_id,
+        )
+
+    # 7) ALNS (opsional) → lalu IMPROVE
+    alns_dur = 0.0
+    improv_dur = 0.0
+
+    if USE_ALNS and alns_time > 0.05:
+        log.info("ALNS start (limit=%.1fs)", alns_cfg.time_limit_sec)
+        t_alns0 = time.perf_counter()
+        routes = run_step(
+            lambda: alns_optimize(
+                init_routes=routes,
+                nodes=nodes_exp,
+                tm=tm_exp,
+                vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,
+                refill_ids=refill_ids,
+                depot_id=depot_id,
+                allow_refill=settings.ALLOW_REFILL,
+                cfg=alns_cfg,
+            ),
+            timeout_sec=alns_cfg.time_limit_sec + 1.0,  # sedikit buffer
+            name="alns_optimize",
+        )
+        t_alns1 = time.perf_counter()
+        alns_dur = t_alns1 - t_alns0
+        log.info("ALNS done in %.3fs", alns_dur)
+    else:
+        log.info("ALNS skipped (USE_ALNS=%s, time=%.2fs)", USE_ALNS, alns_time)
+
+    log.info("IMPROVE start (limit=%.1fs)", improv_time)
+    t_impr0 = time.perf_counter()
     routes = improve_routes(
         routes,
-        nodes_exp,  # hasil expand
-        tm_exp,  # hasil expand
-        time_limit_sec=min(
-            max(0.1, settings.TIME_LIMIT_SEC * 0.5), settings.TIME_LIMIT_SEC
-        ),
+        nodes_exp,
+        tm_exp,
+        time_limit_sec=improv_time,
         max_no_improve=10,
     )
-    t_impr = time.perf_counter()
-    log.info("IMPROVE done in %.3fs", t_impr - t_cons)
+    t_impr1 = time.perf_counter()
+    improv_dur = t_impr1 - t_impr0
+    log.info("IMPROVE done in %.3fs", improv_dur)
 
     # 8) EVALUATE (pakai nodes_exp, tm_exp)
-    obj_time = total_time_minutes(routes, nodes_exp, tm_exp)
+    obj_time = makespan_minutes(routes, nodes_exp, tm_exp)
     results: list[RouteResult] = []
     for vid, r in enumerate(routes):
         if len(r) <= 2:
@@ -313,13 +440,20 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
                 "load": round(t_load - t0, 4),
                 "validate": round(t_val - t_load, 4),
                 "construct": round(t_cons - t_val, 4),
-                "improve": 0.0,
-                "evaluate": round(t_eval - t_impr, 4),
+                "alns": round(alns_dur, 4),  # ⬅️ waktu ALNS
+                "improve": round(improv_dur, 4),  # ⬅️ waktu improve real
+                "evaluate": round(t_eval - max(t_impr1, t_cons), 4),
                 "total": round(t_eval - t0, 4),
             },
             "expanded": {
                 "selected_in": selected_raw,  # input user
                 "selected_expanded": selected_ids_expanded,  # hasil split-delivery
+            },
+            "alns_config": {  # bantu debug
+                "used": USE_ALNS,
+                "time_limit_sec": alns_cfg.time_limit_sec if USE_ALNS else 0.0,
+                "lambda_capacity": alns_cfg.lambda_capacity,
+                "k_remove": [alns_cfg.k_remove_min, alns_cfg.k_remove_max],
             },
         },
     )
