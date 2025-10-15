@@ -55,7 +55,7 @@ def capacity_trace_and_violations(route, nodes, vehicle_capacity):
       - trace_strict: sisa kapasitas setelah tiap node (BOLEH negatif agar pelanggaran terlihat)
       - violations: list [(idx, node_id, liters_short)] saat rem < 0 sebelum clamp
     """
-    rem = vehicle_capacity
+    rem = 0
     trace = []
     violations = []
     for idx, nid in enumerate(route):

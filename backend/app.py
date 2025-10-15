@@ -187,12 +187,12 @@ def split_route_into_k_by_load(
             if nid != cleaned[-1]:
                 cleaned.append(nid)
         # 2) drop refill right after depot
-        if (
-            len(cleaned) >= 3
-            and cleaned[0] == depot_id
-            and nodes[cleaned[1]].type == "refill"
-        ):
-            cleaned.pop(1)
+        # if (
+        #     len(cleaned) >= 3
+        #     and cleaned[0] == depot_id
+        #     and nodes[cleaned[1]].type == "refill"
+        # ):
+        #     cleaned.pop(1)
         # 3) drop refill right before depot
         if (
             len(cleaned) >= 3
