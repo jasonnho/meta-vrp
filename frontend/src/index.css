@@ -7,6 +7,15 @@
 /* tinggi map */
 .map-box { height: 480px; }
 
+.input { @apply px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent; }
+.card  { @apply rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950; }
+.card-h { @apply px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 text-sm font-medium; }
+.card-b { @apply p-4; }
+.btn   { @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-zinc-900 text-white hover:opacity-90 disabled:opacity-60; }
+.btn-ghost { @apply inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm border; }
+.badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border; }
+
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;

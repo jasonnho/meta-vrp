@@ -99,6 +99,7 @@ class JobVehicleRun(Base):
         String, ForeignKey("operators.operator_id")
     )
     status: Mapped[str] = mapped_column(String, nullable=False, default="planned")
+    created_at = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
 
 
 # ================== Step status ==================
@@ -114,3 +115,4 @@ class JobStepStatus(Base):
     reason: Mapped[str | None] = mapped_column(Text)
     ts = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     author: Mapped[str | None] = mapped_column(String)
+    created_at = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
