@@ -28,6 +28,15 @@ from .engine.utils import ensure_all_routes_capacity
 from .engine.utils import build_groups_from_expanded_ids
 from .engine.utils import ensure_all_routes_capacity, ensure_groups_single_vehicle
 
+from .routers import (
+    routes_groups,
+    routes_catalog,
+    routes_assign,
+    routes_status,
+    routes_history,
+)
+
+
 import time
 import logging
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FTimeout
@@ -542,6 +551,13 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             },
         },
     )
+
+
+app.include_router(routes_groups.router)
+app.include_router(routes_catalog.router)
+app.include_router(routes_assign.router)
+app.include_router(routes_status.router)
+app.include_router(routes_history.router)
 
 
 @app.post("/optimize", response_model=OptimizeResponse)
