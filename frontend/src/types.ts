@@ -24,6 +24,11 @@ export interface LogEntry {
   meta?: Record<string, unknown>;
 }
 
+export interface LogsPage {
+    items: LogEntry[];
+    next_cursor?: string | null;
+}
+
 export interface Operator {
   id: string;
   name: string;
@@ -52,9 +57,45 @@ export interface Group {
 }
 
 export interface Node {
-  id: string;         // contoh: "48" atau "25#1"
+  id: string;
   name?: string;
   lat: number;
   lon: number;
-  kind?: "depot" | "refill" | "customer";
+  // samakan dengan backend:
+  kind?: "depot" | "refill" | "park";
+}
+
+// tambahkan di bawah tipe yang lain
+export type JobStatus = "planned" | "running" | "succeeded" | "failed" | "cancelled" | string;
+
+export interface HistoryItem {
+  job_id: string;
+  created_at: string;     // ISO string dengan timezone (e.g. +07:00)
+  vehicle_count: number;  // jumlah kendaraan dipakai
+  status: JobStatus;
+  // opsional dari backend (kalau kamu tambahkan nanti):
+  points_count?: number;        // alias utama yg kita pakai
+  served_points?: number;       // alias yg mungkin dipakai backend
+  points_total?: number;        // alias lain
+  node_count?: number;          // alias lain
+}
+
+export interface JobVehicle {
+  vehicle_id: number | string;
+  plate?: string;
+  operator?: { id?: string; name?: string };
+}
+
+export interface JobRoute {
+  vehicle_id: number | string;
+  sequence: string[];
+  total_time_min?: number;
+}
+
+export interface JobDetail {
+  job_id: string;
+  created_at: string;
+  status: JobStatus;
+  vehicles: JobVehicle[];
+  routes: JobRoute[];
 }

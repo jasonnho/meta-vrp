@@ -560,19 +560,88 @@ app.include_router(routes_status.router)
 app.include_router(routes_history.router)
 
 
+from uuid import uuid4
+from datetime import datetime, timezone
+from .database import SessionLocal
+from .models import JobVehicleRun, JobStepStatus
+
+
 @app.post("/optimize", response_model=OptimizeResponse)
 def optimize(req: OptimizeRequest):
-    # Hard timeout di level endpoint, supaya Swagger nggak muter selamanya
     hard_timeout = max(3.0, settings.TIME_LIMIT_SEC + 5.0)
     try:
         fut = EXECUTOR.submit(_solve, req)
-        return fut.result(timeout=hard_timeout)
+        result = fut.result(timeout=hard_timeout)
+
+        # pastikan bisa di-index
+        if not isinstance(result, dict):
+            result = result.dict()
+
+        # === simpan hasil optimasi ke DB ===
+        db = SessionLocal()
+        job_id = str(uuid4())
+        try:
+            routes = result.get("routes", [])
+            for r in routes:
+                # r bisa dict atau pydantic; handle dua-duanya
+                vehicle_id = r["vehicle_id"] if isinstance(r, dict) else r.vehicle_id
+                total_time_min = (
+                    r.get("total_time_min")
+                    if isinstance(r, dict)
+                    else getattr(r, "total_time_min", None)
+                )
+                sequence = (
+                    r.get("sequence", [])
+                    if isinstance(r, dict)
+                    else getattr(r, "sequence", [])
+                )
+
+                db.add(
+                    JobVehicleRun(
+                        job_id=job_id,
+                        vehicle_id=vehicle_id,
+                        route_total_time_min=total_time_min,
+                        status="planned",
+                        # expected_finish_local bisa None, model kamu nullable
+                    )
+                )
+
+                # Simpan status step awal = 'planned'
+                # NOTE: model kamu butuh ts (bukan created_at) & tidak ada node_id
+                now = datetime.now(timezone.utc)
+                for idx, _ in enumerate(sequence):
+                    db.add(
+                        JobStepStatus(
+                            job_id=job_id,
+                            vehicle_id=vehicle_id,
+                            sequence_index=idx,
+                            status="planned",
+                            reason=None,
+                            ts=now,
+                            author="system",
+                        )
+                    )
+
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            # biar kelihatan di console/log
+            import logging
+
+            logging.getLogger(__name__).exception("Error saving optimization log")
+            # kamu boleh raise kalau mau kelihatan 500
+            # raise
+        finally:
+            db.close()
+
+        result["job_id"] = job_id
+        return result
+
     except FTimeout:
         raise HTTPException(
             status_code=504, detail=f"Optimization timed out after {hard_timeout:.1f}s"
         )
     except RuntimeError as e:
-        # Error engine (mis. demand > kapasitas, no feasible move) jadi 400 yang jelas
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
@@ -581,3 +650,39 @@ def optimize(req: OptimizeRequest):
         raise HTTPException(
             status_code=500, detail=f"Internal error: {type(e).__name__}: {e}"
         )
+
+
+# --- tambahkan di app.py (atau bikin router terpisah) ---
+from pydantic import BaseModel
+from typing import Optional, Literal, List
+
+
+class NodeOut(BaseModel):
+    id: str
+    name: Optional[str] = None
+    lat: float
+    lon: float
+    kind: Optional[Literal["depot", "refill", "park"]] = None
+
+
+@app.get("/nodes", response_model=List[NodeOut])
+def list_nodes():
+    try:
+        nodes_dict, ids_in_order = load_nodes_csv(settings.DATA_NODES_PATH)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read nodes: {e}")
+
+    out: List[NodeOut] = []
+    for nid in ids_in_order:
+        n = nodes_dict[nid]
+        # field di Node: id, name, lat, lon, type, demand_liters, service_min
+        out.append(
+            NodeOut(
+                id=n.id,
+                name=getattr(n, "name", None),
+                lat=float(n.lat),
+                lon=float(n.lon),
+                kind=getattr(n, "type", None),
+            )
+        )
+    return out
