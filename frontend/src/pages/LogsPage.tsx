@@ -198,7 +198,7 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
 
   return (
     <div className="space-y-6">
-      {/* Header info */}
+      {/* Header */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
         <div>
           <div className="opacity-70">Job ID</div>
@@ -214,7 +214,7 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
         </div>
       </div>
 
-      {/* Kendaraan + Operator (dari summary/assignments) */}
+      {/* Kendaraan & Operator */}
       <div className="space-y-2">
         <div className="font-medium">Kendaraan & Operator</div>
         {vehicles.length === 0 ? (
@@ -239,9 +239,7 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
                     <td className="p-2">{v.operator?.name ?? "—"}</td>
                     <td className="p-2 capitalize">{v.status ?? "—"}</td>
                     <td className="p-2">
-                      {typeof v.route_total_time_min === "number"
-                        ? `${v.route_total_time_min} min`
-                        : "—"}
+                      {typeof v.route_total_time_min === "number" ? `${v.route_total_time_min} min` : "—"}
                     </td>
                   </tr>
                 ))}
@@ -251,15 +249,11 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
         )}
       </div>
 
-      {/* Rute (opsional, dari /result) */}
+      {/* Rute */}
       <div className="space-y-2">
         <div className="font-medium">Rute</div>
         {routes.length === 0 ? (
-          <div className="text-sm opacity-70">
-            Rute belum tersedia pada endpoint <code>/jobs/&lt;id&gt;/summary</code>.
-            Sistem sudah mencoba memuat dari <code>/jobs/&lt;id&gt;/result</code>.
-            Jika endpoint tersebut belum ada, tambahkan di backend atau gabungkan rute ke summary.
-          </div>
+          <div className="text-sm opacity-70">Rute belum tersedia.</div>
         ) : (
           <div className="space-y-3">
             {routes.map((r, idx) => (
@@ -272,10 +266,44 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
                     </span>
                   )}
                 </div>
-                <div className="card-b">
+                <div className="card-b space-y-2">
                   <div className="font-mono text-xs break-all">
                     {r.sequence.join(" → ")}
                   </div>
+
+                  {/* Opsional: table per-step dengan status alasan */}
+                  {(() => {
+                    const v = vehicles.find(v => String(v.vehicle_id) === String(r.vehicle_id));
+                    const steps = v?.route ?? [];
+                    if (!steps?.length) return null;
+                    return (
+                      <div className="overflow-auto -mx-2">
+                        <table className="min-w-[500px] w-full text-xs">
+                          <thead className="bg-zinc-100 dark:bg-zinc-900">
+                            <tr>
+                              <th className="text-left p-2 w-16">Idx</th>
+                              <th className="text-left p-2 w-32">Node</th>
+                              <th className="text-left p-2 w-28">Status</th>
+                              <th className="text-left p-2">Reason</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {steps
+                              .slice()
+                              .sort((a,b)=>a.sequence_index-b.sequence_index)
+                              .map(s => (
+                                <tr key={s.sequence_index} className="border-t border-zinc-200 dark:border-zinc-800">
+                                  <td className="p-2">{s.sequence_index}</td>
+                                  <td className="p-2">{s.node_id}</td>
+                                  <td className="p-2 capitalize">{s.status ?? "—"}</td>
+                                  <td className="p-2">{s.reason ?? "—"}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
@@ -285,4 +313,5 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
     </div>
   );
 }
+
 

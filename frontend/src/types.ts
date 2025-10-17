@@ -52,6 +52,7 @@ export interface Assignment {
 export interface Group {
   id: string;
   name: string;
+  description?: string | null;
   nodeIds: NodeId[];
   createdAt: string;
 }
@@ -80,19 +81,30 @@ export interface HistoryItem {
   node_count?: number;          // alias lain
 }
 
+export interface JobRouteStep {
+  sequence_index: number;
+  node_id: string;
+  status?: string | null;
+  reason?: string | null;
+}
+
+
 export interface JobVehicle {
   vehicle_id: number | string;
   plate?: string;
   operator?: { id?: string; name?: string };
-  status?: string;                 // from summary
-  route_total_time_min?: number;   // from summary
+  status?: string;
+  route_total_time_min?: number;
   assigned_vehicle_id?: string | number | null;
   assigned_operator_id?: string | number | null;
+
+  // NEW: rute mentah per step dari /summary
+  route?: JobRouteStep[];
 }
 
 export interface JobRoute {
   vehicle_id: number | string;
-  sequence: string[];
+  sequence: string[];          // turunan dari vehicles[].route[].node_id
   total_time_min?: number;
 }
 
@@ -103,4 +115,3 @@ export interface JobDetail {
   vehicles: JobVehicle[]; // from /summary or /assignments
   routes: JobRoute[];     // from /result (if available)
 }
-

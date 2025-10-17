@@ -36,6 +36,16 @@ from .routers import (
     routes_history,
 )
 
+from uuid import uuid4
+from datetime import datetime, timezone
+from .database import SessionLocal
+from .models import JobVehicleRun, JobStepStatus
+
+
+from .engine.data import Node, TimeMatrix  # pastikan impor (local reference)
+from uuid import uuid4
+from datetime import datetime, timezone
+import logging
 
 import time
 import logging
@@ -273,7 +283,6 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             )
 
     # 3) EXPAND SPLIT-DELIVERY (jika demand > kapasitas)
-    from .engine.data import Node, TimeMatrix  # pastikan impor (local reference)
 
     nodes_exp, tm_exp, selected_ids_expanded = expand_split_delivery(
         nodes_orig, tm_orig, selected_raw, settings.VEHICLE_CAPACITY_LITERS
@@ -559,16 +568,6 @@ app.include_router(routes_assign.router)
 app.include_router(routes_status.router)
 app.include_router(routes_history.router)
 
-
-from uuid import uuid4
-from datetime import datetime, timezone
-from .database import SessionLocal
-from .models import JobVehicleRun, JobStepStatus
-
-
-from uuid import uuid4
-from datetime import datetime, timezone
-import logging
 
 log = logging.getLogger(__name__)
 
