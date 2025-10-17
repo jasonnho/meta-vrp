@@ -109,10 +109,8 @@ class JobStepStatus(Base):
     vehicle_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     sequence_index: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    status: Mapped[str] = mapped_column(
-        String, nullable=False
-    )  # planned|visited|skipped|failed
+    node_id: Mapped[str | None] = mapped_column(String)  # <-- NEW
+    status: Mapped[str] = mapped_column(String, nullable=False)
     reason: Mapped[str | None] = mapped_column(Text)
     ts = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     author: Mapped[str | None] = mapped_column(String)
-    created_at = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())

@@ -72,10 +72,11 @@ def list_jobs(
 @router.get("/{job_id}/summary")
 def get_job_summary(job_id: str, db: Session = Depends(get_db)):
     """
-    Ringkasan per kendaraan untuk satu job:
-    - Ambil vehicles dari vrp_job_vehicle_runs
-    - created_at dari MIN(ts) step status
+    Ringkasan job lengkap:
+    - Info job
+    - Daftar kendaraan beserta rute (sequence node_id)
     """
+    # Ambil waktu dibuatnya job
     created_at_row = (
         db.query(func.min(JobStepStatus.ts))
         .filter(JobStepStatus.job_id == job_id)
@@ -83,6 +84,7 @@ def get_job_summary(job_id: str, db: Session = Depends(get_db)):
     )
     created_at = created_at_row[0] if created_at_row and created_at_row[0] else None
 
+    # Ambil semua kendaraan dari job ini
     veh_rows = (
         db.query(
             JobVehicleRun.vehicle_id,
@@ -97,21 +99,52 @@ def get_job_summary(job_id: str, db: Session = Depends(get_db)):
         .all()
     )
 
-    vehicles = [
-        {
-            "vehicle_id": v.vehicle_id,
-            "route_total_time_min": (
-                float(v.route_total_time_min)
-                if v.route_total_time_min is not None
-                else None
-            ),
-            "expected_finish_local": v.expected_finish_local,
-            "status": v.status,
-            "assigned_vehicle_id": v.assigned_vehicle_id,
-            "assigned_operator_id": v.assigned_operator_id,
-        }
-        for v in veh_rows
-    ]
+    vehicles = []
+    for v in veh_rows:
+        # Ambil rute untuk kendaraan ini dari step status
+        route_steps = (
+            db.query(
+                JobStepStatus.sequence_index,
+                JobStepStatus.node_id,  # <-- tambahkan
+                JobStepStatus.status,
+                JobStepStatus.reason,
+            )
+            .filter(
+                JobStepStatus.job_id == job_id,
+                JobStepStatus.vehicle_id == v.vehicle_id,
+            )
+            .order_by(JobStepStatus.sequence_index.asc())
+            .all()
+        )
+
+        # node_id tidak ada di JobStepStatus (kalau kamu ingin, bisa tambahkan kolom node_id nanti)
+        # sementara ini kita pakai sequence_index + status saja
+
+        route = [
+            {
+                "sequence_index": s.sequence_index,
+                "node_id": s.node_id,  # <-- keluarkan ke response
+                "status": s.status,
+                "reason": s.reason,
+            }
+            for s in route_steps
+        ]
+
+        vehicles.append(
+            {
+                "vehicle_id": v.vehicle_id,
+                "route_total_time_min": (
+                    float(v.route_total_time_min)
+                    if v.route_total_time_min is not None
+                    else None
+                ),
+                "expected_finish_local": v.expected_finish_local,
+                "status": v.status,
+                "assigned_vehicle_id": v.assigned_vehicle_id,
+                "assigned_operator_id": v.assigned_operator_id,
+                "route": route,  # 🟢 rute tiap kendaraan
+            }
+        )
 
     return {
         "job": {
