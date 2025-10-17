@@ -84,6 +84,10 @@ export interface JobVehicle {
   vehicle_id: number | string;
   plate?: string;
   operator?: { id?: string; name?: string };
+  status?: string;                 // from summary
+  route_total_time_min?: number;   // from summary
+  assigned_vehicle_id?: string | number | null;
+  assigned_operator_id?: string | number | null;
 }
 
 export interface JobRoute {
@@ -96,6 +100,7 @@ export interface JobDetail {
   job_id: string;
   created_at: string;
   status: JobStatus;
-  vehicles: JobVehicle[];
-  routes: JobRoute[];
+  vehicles: JobVehicle[]; // from /summary or /assignments
+  routes: JobRoute[];     // from /result (if available)
 }
+

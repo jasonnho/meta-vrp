@@ -566,6 +566,21 @@ from .database import SessionLocal
 from .models import JobVehicleRun, JobStepStatus
 
 
+from uuid import uuid4
+from datetime import datetime, timezone
+import logging
+
+log = logging.getLogger(__name__)
+
+
+def _to_node_id(x):
+    # adapt ke format sequence kamu: string, int, dict, tuple, dsb.
+    if isinstance(x, dict):
+        # coba beberapa kunci umum
+        return x.get("node_id") or x.get("id") or x.get("node") or str(x)
+    return str(x)
+
+
 @app.post("/optimize", response_model=OptimizeResponse)
 def optimize(req: OptimizeRequest):
     hard_timeout = max(3.0, settings.TIME_LIMIT_SEC + 5.0)
@@ -573,20 +588,30 @@ def optimize(req: OptimizeRequest):
         fut = EXECUTOR.submit(_solve, req)
         result = fut.result(timeout=hard_timeout)
 
-        # pastikan bisa di-index
+        # pastikan dict
         if not isinstance(result, dict):
             result = result.dict()
 
-        # === simpan hasil optimasi ke DB ===
+        routes = result.get("routes", [])
+        if not routes:
+            # kalau tak ada route, langsung return saja
+            result["job_id"] = None
+            return result
+
         db = SessionLocal()
         job_id = str(uuid4())
         try:
-            routes = result.get("routes", [])
+            now = datetime.now(timezone.utc)
+
             for r in routes:
-                # r bisa dict atau pydantic; handle dua-duanya
-                vehicle_id = r["vehicle_id"] if isinstance(r, dict) else r.vehicle_id
+                # r bisa dict atau objek
+                vehicle_id = (
+                    r["vehicle_id"]
+                    if isinstance(r, dict)
+                    else getattr(r, "vehicle_id", None)
+                )
                 total_time_min = (
-                    r.get("total_time_min")
+                    r["total_time_min"]
                     if isinstance(r, dict)
                     else getattr(r, "total_time_min", None)
                 )
@@ -596,41 +621,50 @@ def optimize(req: OptimizeRequest):
                     else getattr(r, "sequence", [])
                 )
 
+                if vehicle_id is None:
+                    raise ValueError("vehicle_id missing in route item")
+
+                # simpan ringkasan kendaraan
                 db.add(
                     JobVehicleRun(
                         job_id=job_id,
                         vehicle_id=vehicle_id,
                         route_total_time_min=total_time_min,
                         status="planned",
-                        # expected_finish_local bisa None, model kamu nullable
+                        # expected_finish_local boleh None (nullable)
                     )
                 )
 
-                # Simpan status step awal = 'planned'
-                # NOTE: model kamu butuh ts (bukan created_at) & tidak ada node_id
-                now = datetime.now(timezone.utc)
-                for idx, _ in enumerate(sequence):
+                # flush supaya error kunci/constraint cepat ketahuan di kendaraan ini
+                db.flush()
+
+                # simpan langkah rute
+                for idx, node in enumerate(sequence):
                     db.add(
                         JobStepStatus(
                             job_id=job_id,
                             vehicle_id=vehicle_id,
                             sequence_index=idx,
+                            node_id=_to_node_id(node),  # <- ISI NODE_ID
                             status="planned",
                             reason=None,
+                            # ts dikasih—tapi kalau kamu sudah server_default=now(), boleh dihilangkan
                             ts=now,
                             author="system",
                         )
                     )
 
+                # flush per kendaraan (biar pinpoint error)
+                db.flush()
+
             db.commit()
         except Exception as e:
             db.rollback()
-            # biar kelihatan di console/log
-            import logging
-
-            logging.getLogger(__name__).exception("Error saving optimization log")
-            # kamu boleh raise kalau mau kelihatan 500
-            # raise
+            log.exception("❌ Error saving optimization log (job_id=%s): %s", job_id, e)
+            # biar kelihatan di response saat debug:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to save optimization log: {e}"
+            )
         finally:
             db.close()
 

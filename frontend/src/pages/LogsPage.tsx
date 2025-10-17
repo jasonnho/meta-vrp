@@ -214,30 +214,35 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
         </div>
       </div>
 
-      {/* Kendaraan + Operator */}
+      {/* Kendaraan + Operator (dari summary/assignments) */}
       <div className="space-y-2">
         <div className="font-medium">Kendaraan & Operator</div>
         {vehicles.length === 0 ? (
-          <div className="text-sm opacity-70">Tidak ada assignment.</div>
+          <div className="text-sm opacity-70">Tidak ada data kendaraan.</div>
         ) : (
           <div className="overflow-auto -mx-2">
-            <table className="min-w-[600px] w-full text-sm">
+            <table className="min-w-[760px] w-full text-sm">
               <thead className="bg-zinc-100 dark:bg-zinc-900">
                 <tr>
                   <th className="text-left p-2">Vehicle</th>
                   <th className="text-left p-2">Nopol</th>
                   <th className="text-left p-2">Operator</th>
+                  <th className="text-left p-2">Status</th>
+                  <th className="text-left p-2">Durasi Rute</th>
                 </tr>
               </thead>
               <tbody>
                 {vehicles.map((v, i) => (
-                  <tr
-                    key={`${v.vehicle_id}-${i}`}
-                    className="border-t border-zinc-200 dark:border-zinc-800"
-                  >
+                  <tr key={`${v.vehicle_id}-${i}`} className="border-t border-zinc-200 dark:border-zinc-800">
                     <td className="p-2">#{v.vehicle_id}</td>
                     <td className="p-2">{v.plate ?? "—"}</td>
                     <td className="p-2">{v.operator?.name ?? "—"}</td>
+                    <td className="p-2 capitalize">{v.status ?? "—"}</td>
+                    <td className="p-2">
+                      {typeof v.route_total_time_min === "number"
+                        ? `${v.route_total_time_min} min`
+                        : "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -246,11 +251,15 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
         )}
       </div>
 
-      {/* Rute */}
+      {/* Rute (opsional, dari /result) */}
       <div className="space-y-2">
         <div className="font-medium">Rute</div>
         {routes.length === 0 ? (
-          <div className="text-sm opacity-70">Tidak ada rute.</div>
+          <div className="text-sm opacity-70">
+            Rute belum tersedia pada endpoint <code>/jobs/&lt;id&gt;/summary</code>.
+            Sistem sudah mencoba memuat dari <code>/jobs/&lt;id&gt;/result</code>.
+            Jika endpoint tersebut belum ada, tambahkan di backend atau gabungkan rute ke summary.
+          </div>
         ) : (
           <div className="space-y-3">
             {routes.map((r, idx) => (
@@ -259,7 +268,7 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
                   Vehicle #{r.vehicle_id}
                   {typeof r.total_time_min === "number" && (
                     <span className="ml-2 opacity-70 text-xs">
-                      {r.total_time_min} min ({minutesToHHMM(r.total_time_min)})
+                      {r.total_time_min} min
                     </span>
                   )}
                 </div>
@@ -276,3 +285,4 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
     </div>
   );
 }
+
