@@ -1,5 +1,6 @@
 // src/pages/OptimizePage.tsx
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useUI } from "../stores/ui";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Api } from "../lib/api";
 import type { OptimizeResponse, Node, Group } from "../types";
@@ -8,21 +9,20 @@ import NodesMapSelector from "../components/NodesMapSelector";
 
 export default function OptimizePage() {
   // default: 0 kendaraan (sesuai permintaan)
-  const [maxVehicles, setMaxVehicles] = useState<number>(0);
 
   // data nodes & groups
   const nodesQ = useQuery({ queryKey: ["nodes"], queryFn: Api.listNodes });
   const groupsQ = useQuery<Group[]>({ queryKey: ["groups"], queryFn: Api.listGroups });
 
   // selection titik (default: kosong)
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { maxVehicles, setMaxVehicles, selected, setSelected } = useUI();
 
-  const toggle = (id: string) =>
-    setSelected((prev) => {
-      const s = new Set(prev);
-      s.has(id) ? s.delete(id) : s.add(id);
-      return s;
-    });
+
+  const toggle = (id: string) => {
+  const s = new Set(selected);
+  s.has(id) ? s.delete(id) : s.add(id);
+  setSelected(s);
+};
 
   const selectAllParks = () => {
     if (!nodesQ.data) return;

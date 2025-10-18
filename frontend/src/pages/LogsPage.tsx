@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { Api } from "../lib/api";
 import type { HistoryItem, JobDetail, JobStatus } from "../types";
 import StatusBadge from "../components/StatusBadge";
 import Modal from "../components/Modal";
 import { minutesToHHMM } from "../lib/format";
+import { useLogsUI } from "../stores/logs";
 
 // helper: YYYY-MM-DD lokal
 function ymdLocal(d: Date) {
@@ -15,15 +17,47 @@ function ymdLocal(d: Date) {
 }
 
 export default function LogsPage() {
-  const [status, setStatus] = useState<"ALL" | JobStatus>("ALL");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const { status, setStatus, fromDate, setFromDate, toDate, setToDate } = useLogsUI();
+  const [sp, setSp] = useSearchParams();
 
-  // daftar jobs
+  // ===== Sinkronisasi Filter <-> URL =====
+  // Baca dari URL saat pertama kali mount
+  useEffect(() => {
+    const s = (sp.get("status") ?? "").toLowerCase();
+    const f = sp.get("from") ?? "";
+    const t = sp.get("to") ?? "";
+
+    // validasi status
+    const allowed: Array<"ALL" | JobStatus> = ["ALL", "planned", "running", "succeeded", "failed", "cancelled"];
+    const normalized = s ? (allowed.includes(s as any) ? (s as any) : "ALL") : "ALL";
+
+    if (normalized !== status) setStatus(normalized);
+    if (f && f !== fromDate) setFromDate(f);
+    if (t && t !== toDate) setToDate(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Tulis ke URL ketika filter berubah
+  useEffect(() => {
+    const next = new URLSearchParams(sp);
+    if (status && status !== "ALL") next.set("status", status);
+    else next.delete("status");
+
+    if (fromDate) next.set("from", fromDate);
+    else next.delete("from");
+
+    if (toDate) next.set("to", toDate);
+    else next.delete("to");
+
+    setSp(next, { replace: true });
+  }, [status, fromDate, toDate, sp, setSp]);
+
+  // ===== Data: daftar jobs =====
   const q = useQuery<HistoryItem[]>({
-    queryKey: ["jobs"],
-    queryFn: () => Api.listHistory(),
-    staleTime: 10_000,
+    queryKey: ["jobs-history"],            // konsisten dengan halaman lain
+    queryFn: Api.listHistory,
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
   });
 
   const rows = useMemo(() => {
@@ -40,23 +74,27 @@ export default function LogsPage() {
     });
   }, [q.data, status, fromDate, toDate]);
 
-  // modal state
-  const [open, setOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // ===== Detail: pakai URL param ?detail=<jobId> agar state tetap survive & shareable =====
+  const selectedId = sp.get("detail");
+  const open = !!selectedId;
 
   const detailQ = useQuery<JobDetail>({
     queryKey: ["job-detail", selectedId],
     queryFn: () => Api.getJobDetail(selectedId as string),
     enabled: !!selectedId,
+    staleTime: 30_000,
+    gcTime: 10 * 60_000,
   });
 
   const openDetail = (id: string) => {
-    setSelectedId(id);
-    setOpen(true);
+    const next = new URLSearchParams(sp);
+    next.set("detail", id);
+    setSp(next, { replace: false });
   };
   const closeDetail = () => {
-    setOpen(false);
-    setSelectedId(null);
+    const next = new URLSearchParams(sp);
+    next.delete("detail");
+    setSp(next, { replace: true });
   };
 
   return (
@@ -239,7 +277,9 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
                     <td className="p-2">{v.operator?.name ?? "—"}</td>
                     <td className="p-2 capitalize">{v.status ?? "—"}</td>
                     <td className="p-2">
-                      {typeof v.route_total_time_min === "number" ? `${v.route_total_time_min} min` : "—"}
+                      {typeof v.route_total_time_min === "number"
+                        ? `${v.route_total_time_min} min (${minutesToHHMM(v.route_total_time_min)})`
+                        : "—"}
                     </td>
                   </tr>
                 ))}
@@ -262,7 +302,7 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
                   Vehicle #{r.vehicle_id}
                   {typeof r.total_time_min === "number" && (
                     <span className="ml-2 opacity-70 text-xs">
-                      {r.total_time_min} min
+                      {r.total_time_min} min ({minutesToHHMM(r.total_time_min)})
                     </span>
                   )}
                 </div>
@@ -271,7 +311,7 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
                     {r.sequence.join(" → ")}
                   </div>
 
-                  {/* Opsional: table per-step dengan status alasan */}
+                  {/* Per-step dengan status & reason */}
                   {(() => {
                     const v = vehicles.find(v => String(v.vehicle_id) === String(r.vehicle_id));
                     const steps = v?.route ?? [];
@@ -290,7 +330,7 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
                           <tbody>
                             {steps
                               .slice()
-                              .sort((a,b)=>a.sequence_index-b.sequence_index)
+                              .sort((a, b) => (a.sequence_index ?? 0) - (b.sequence_index ?? 0))
                               .map(s => (
                                 <tr key={s.sequence_index} className="border-t border-zinc-200 dark:border-zinc-800">
                                   <td className="p-2">{s.sequence_index}</td>
@@ -313,5 +353,3 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
     </div>
   );
 }
-
-
