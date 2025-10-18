@@ -29,25 +29,32 @@ export interface LogsPage {
     next_cursor?: string | null;
 }
 
-export interface Operator {
+// --- Catalog ---
+export type Operator = {
   id: string;
   name: string;
   phone?: string;
-}
+  active: boolean;
+  createdAt: string; // ISO
+};
 
-export interface Vehicle {
-  id: number;
-  plate?: string;
-  capacity_liters?: number;
-}
+export type Vehicle = {
+  id: string;
+  plate: string;
+  capacityL: number;
+  active: boolean;
+  createdAt: string; // ISO
+};
 
-export interface Assignment {
+// --- Assignment (contoh kamu mungkin sudah punya) ---
+export type Assignment = {
   id: string;
   routeVehicleId: number;
   operatorId: string;
-  vehicleId: number;
+  vehicleId: string;
   createdAt: string;
-}
+};
+
 
 export interface Group {
   id: string;
@@ -115,3 +122,5 @@ export interface JobDetail {
   vehicles: JobVehicle[]; // from /summary or /assignments
   routes: JobRoute[];     // from /result (if available)
 }
+
+
