@@ -3,13 +3,19 @@ from .data import Node, TimeMatrix
 
 
 def _nearest(target_from: str, candidates: List[str], tm: TimeMatrix) -> str:
-    best = None
-    best_t = float("inf")
-    for c in candidates:
+    if not candidates:
+        raise ValueError("nearest(): candidates must be non-empty")
+
+    # inisialisasi dari elemen pertama → hindari None
+    best = candidates[0]
+    best_t = tm.travel(target_from, best)
+
+    for c in candidates[1:]:
         t = tm.travel(target_from, c)
         if t < best_t:
             best, best_t = c, t
-    return best  # asumsi candidates tidak kosong
+
+    return best
 
 
 def greedy_construct(
