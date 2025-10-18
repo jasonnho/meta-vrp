@@ -173,7 +173,7 @@ export default function AssignPage() {
             <option value="">— pilih job —</option>
             {jobs.map((j) => (
               <option key={j.job_id} value={j.job_id}>
-                {j.job_id} · {j.status} · {new Date(j.created_at).toLocaleString()} · {j.vehicle_count} vehicles
+                {j.status} · {new Date(j.created_at).toLocaleString()} · {j.vehicle_count} vehicles
               </option>
             ))}
           </select>
@@ -191,8 +191,7 @@ export default function AssignPage() {
             ) : jobDetail ? (
               <div className="space-y-3">
                 <div className="text-sm opacity-80">
-                  Job <span className="font-mono">{jobDetail.job_id}</span> · {jobDetail.status} ·{" "}
-                  {new Date(jobDetail.created_at).toLocaleString()}
+                  {jobDetail.status} · {new Date(jobDetail.created_at).toLocaleString()}
                 </div>
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -201,6 +200,9 @@ export default function AssignPage() {
                     const rvKey = String(v.vehicle_id);
                     const pick = perRV[rvKey] ?? {};
                     const canAssign = !!pick.operatorId && !!pick.vehicleId;
+
+                    const assignedVehPlate = vehicles.find(x => String(x.id) === String(v.assigned_vehicle_id))?.plate;
+                    const assignedOpName   = operators.find(x => String(x.id) === String(v.assigned_operator_id))?.name;
 
                     return (
                       <div key={rvKey} className="rounded-lg border p-3 space-y-2">
@@ -213,18 +215,10 @@ export default function AssignPage() {
                           Route time ≈ {v.route_total_time_min ?? "-"} min
                         </div>
 
-                        {(v.assigned_vehicle_id || v.assigned_operator_id) && (
+                        {(assignedVehPlate || assignedOpName) && (
                           <div className="text-[12px]">
-                            {v.assigned_vehicle_id && (
-                              <div>
-                                Assigned Vehicle ID: <span className="opacity-80">{String(v.assigned_vehicle_id)}</span>
-                              </div>
-                            )}
-                            {v.assigned_operator_id && (
-                              <div>
-                                Assigned Operator ID: <span className="opacity-80">{String(v.assigned_operator_id)}</span>
-                              </div>
-                            )}
+                            {assignedVehPlate && <div>Assigned Vehicle: <span className="opacity-80">{assignedVehPlate}</span></div>}
+                            {assignedOpName && <div>Assigned Operator: <span className="opacity-80">{assignedOpName}</span></div>}
                           </div>
                         )}
 

@@ -118,8 +118,7 @@ export default function StatusPage() {
             <option value="">— pilih job —</option>
             {jobs.map((j) => (
               <option key={j.job_id} value={j.job_id}>
-                {j.job_id} · {j.status} ·{" "}
-                {new Date(j.created_at).toLocaleString()} · {j.vehicle_count} vehicles
+                {j.status} · {new Date(j.created_at).toLocaleString()} · {j.vehicle_count} vehicles
               </option>
             ))}
           </select>
@@ -141,8 +140,7 @@ export default function StatusPage() {
             ) : jobDetail ? (
               <div className="space-y-4">
                 <div className="text-sm opacity-80">
-                  Job <span className="font-mono">{jobDetail.job_id}</span> · {jobDetail.status} ·{" "}
-                  {new Date(jobDetail.created_at).toLocaleString()}
+                  {jobDetail.status} · {new Date(jobDetail.created_at).toLocaleString()}
                 </div>
 
                 {/* ===== Cards per Vehicle ===== */}
