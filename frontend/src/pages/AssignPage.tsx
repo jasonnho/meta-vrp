@@ -1,6 +1,6 @@
-// src/pages/AssignPage.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { Api } from "../lib/api";
 import type {
   Operator,
@@ -9,9 +9,10 @@ import type {
   JobDetail,
   JobVehicle,
 } from "../types";
+import { useAssignUI } from "../stores/assign";
 
 type PerRVSelection = Record<
-  string, // routeVehicleId as string
+  string,
   { operatorId?: string; vehicleId?: string; status?: string }
 >;
 
@@ -19,14 +20,43 @@ const STATUS_OPTIONS = ["planned", "running", "completed", "cancelled"] as const
 
 export default function AssignPage() {
   const qc = useQueryClient();
+  const [sp, setSp] = useSearchParams();
+
+  // ======= Store (persist) =======
+  const {
+    selectedJobId, setSelectedJobId, perRV, setPerRV, clearPerRV,
+    showAddOp, setShowAddOp, newOp, setNewOp,
+    showAddVeh, setShowAddVeh, newVeh, setNewVeh,
+  } = useAssignUI();
 
   // ================== 1) Jobs dropdown ==================
   const { data: jobs = [], isLoading: loadingJobs, error: jobsErr } = useQuery<HistoryItem[]>({
     queryKey: ["jobs-history"],
     queryFn: Api.listHistory,
     staleTime: 60_000,
+    gcTime: 10 * 60_000,
   });
-  const [selectedJobId, setSelectedJobId] = useState<string>("");
+
+  // Sinkronisasi selectedJobId <-> URL (?jobId=...) dan toggle add forms (?add=op|veh)
+  useEffect(() => {
+    const j = sp.get("jobId") ?? "";
+    const add = sp.get("add") ?? "";
+    if (j && j !== selectedJobId) setSelectedJobId(j);
+    if (add === "op") setShowAddOp(true);
+    if (add === "veh") setShowAddVeh(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const next = new URLSearchParams(sp);
+    if (selectedJobId) next.set("jobId", selectedJobId);
+    else next.delete("jobId");
+
+    if (showAddOp) next.set("add", "op");
+    else if (showAddVeh) next.set("add", "veh");
+    else next.delete("add");
+
+    setSp(next, { replace: true });
+  }, [selectedJobId, showAddOp, showAddVeh, sp, setSp]);
 
   // ================== 2) Job detail (vehicles) ==================
   const {
@@ -37,22 +67,30 @@ export default function AssignPage() {
     queryKey: ["job-detail", selectedJobId],
     queryFn: () => Api.getJobDetail(selectedJobId),
     enabled: !!selectedJobId,
+    staleTime: 30_000,
+    gcTime: 10 * 60_000,
   });
+
+  // Kalau ganti job → reset pilihan perRV (tetap dipersist di store utk halaman lain)
+  useEffect(() => {
+    clearPerRV();
+  }, [selectedJobId, clearPerRV]);
 
   // ================== 3) Catalogs ==================
   const { data: operators = [] } = useQuery<Operator[]>({
     queryKey: ["operators"],
     queryFn: Api.listOperators,
     staleTime: 60_000,
+    gcTime: 10 * 60_000,
   });
   const { data: vehicles = [] } = useQuery<Vehicle[]>({
     queryKey: ["vehicles"],
     queryFn: Api.listVehicles,
     staleTime: 60_000,
+    gcTime: 10 * 60_000,
   });
 
   // ================== 4) Mutations ==================
-  // Assign via PATCH /jobs/{job_id}/vehicles/{vid}
   const assignMut = useMutation({
     mutationFn: (p: {
       jobId: string;
@@ -82,18 +120,18 @@ export default function AssignPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["operators"] }),
   });
   const createOp = useMutation({
-  mutationFn: (p: { name: string; phone?: string; active?: boolean }) =>
-    Api.createOperator({
-      name: p.name,
-      phone: p.phone,              // <-- biarkan undefined kalau kosong
-      active: p.active ?? true,
-    }),
-  onSuccess: () => {
-    qc.invalidateQueries({ queryKey: ["operators"] });
-    setShowAddOp(false);
-    setNewOp({ name: "", phone: "", active: true });
-  },
-});
+    mutationFn: (p: { name: string; phone?: string; active?: boolean }) =>
+      Api.createOperator({
+        name: p.name,
+        phone: p.phone,
+        active: p.active ?? true,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["operators"] });
+      setShowAddOp(false);
+      setNewOp(() => ({ name: "", phone: "", active: true }));
+    },
+  });
 
   // katalog: vehicles
   const updateVeh = useMutation({
@@ -111,30 +149,12 @@ export default function AssignPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vehicles"] });
       setShowAddVeh(false);
-      setNewVeh({ plate: "", capacityL: 0, active: true });
+      setNewVeh(() => ({ plate: "", capacityL: 0, active: true }));
     },
   });
 
-  // ================== 5) State pilihan per Route Vehicle ==================
-  const [perRV, setPerRV] = useState<PerRVSelection>({});
-  useEffect(() => setPerRV({}), [selectedJobId]);
-
+  // ================== derived ==================
   const jobVehicles: JobVehicle[] = useMemo(() => jobDetail?.vehicles ?? [], [jobDetail]);
-
-  // ================== 6) State form add operator/vehicle ==================
-  const [showAddOp, setShowAddOp] = useState(false);
-  const [newOp, setNewOp] = useState<{ name: string; phone: string; active: boolean }>({
-    name: "",
-    phone: "",
-    active: true,
-  });
-
-  const [showAddVeh, setShowAddVeh] = useState(false);
-  const [newVeh, setNewVeh] = useState<{ plate: string; capacityL: number; active: boolean }>({
-    plate: "",
-    capacityL: 0,
-    active: true,
-  });
 
   // ================== UI ==================
   return (
@@ -256,7 +276,6 @@ export default function AssignPage() {
                             </select>
                           </div>
 
-                          {/* Status SELECT (bukan input text) */}
                           <div className="space-y-1">
                             <label className="text-xs opacity-80">Status</label>
                             <select
@@ -284,7 +303,7 @@ export default function AssignPage() {
                               onClick={() =>
                                 assignMut.mutate({
                                   jobId: selectedJobId,
-                                  vid: v.vehicle_id, // path param {vid}
+                                  vid: v.vehicle_id,
                                   assigned_operator_id: pick.operatorId!,
                                   assigned_vehicle_id: pick.vehicleId!,
                                   status: pick.status ?? "planned",
@@ -315,7 +334,10 @@ export default function AssignPage() {
       <div className="rounded-xl border p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="text-sm font-medium">Operators</div>
-          <button className="px-2 py-1 rounded-md border text-xs" onClick={() => setShowAddOp((s) => !s)}>
+          <button
+            className="px-2 py-1 rounded-md border text-xs"
+            onClick={() => setShowAddOp(!showAddOp)}
+          >
             {showAddOp ? "Close" : "+ Add Operator"}
           </button>
         </div>
@@ -346,14 +368,20 @@ export default function AssignPage() {
               <button
                 className="px-3 py-2 rounded-lg bg-zinc-900 text-white disabled:opacity-50"
                 disabled={!newOp.name.trim() || createOp.isPending}
-                onClick={() => createOp.mutate({ name: newOp.name.trim(), phone: newOp.phone.trim() || undefined, active: newOp.active })}
+                onClick={() =>
+                  createOp.mutate({
+                    name: newOp.name.trim(),
+                    phone: newOp.phone.trim() || undefined,
+                    active: newOp.active,
+                  })
+                }
               >
                 {createOp.isPending ? "Saving..." : "Save"}
               </button>
               <button
                 className="px-3 py-2 rounded-lg border"
                 onClick={() => {
-                  setNewOp({ name: "", phone: "", active: true });
+                  setNewOp(() => ({ name: "", phone: "", active: true }));
                   setShowAddOp(false);
                 }}
               >
@@ -397,7 +425,10 @@ export default function AssignPage() {
       <div className="rounded-xl border p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="text-sm font-medium">Vehicles</div>
-          <button className="px-2 py-1 rounded-md border text-xs" onClick={() => setShowAddVeh((s) => !s)}>
+          <button
+            className="px-2 py-1 rounded-md border text-xs"
+            onClick={() => setShowAddVeh(!showAddVeh)}
+          >
             {showAddVeh ? "Close" : "+ Add Vehicle"}
           </button>
         </div>
@@ -416,7 +447,10 @@ export default function AssignPage() {
               placeholder="Capacity (L)"
               value={Number.isFinite(newVeh.capacityL) ? newVeh.capacityL : 0}
               onChange={(e) =>
-                setNewVeh((s) => ({ ...s, capacityL: e.target.value === "" ? 0 : Number(e.target.value) }))
+                setNewVeh((s) => ({
+                  ...s,
+                  capacityL: e.target.value === "" ? 0 : Number(e.target.value),
+                }))
               }
             />
             <label className="flex items-center gap-2 text-sm px-2">
@@ -432,7 +466,11 @@ export default function AssignPage() {
                 className="px-3 py-2 rounded-lg bg-zinc-900 text-white disabled:opacity-50"
                 disabled={!newVeh.plate.trim() || createVeh.isPending}
                 onClick={() =>
-                  createVeh.mutate({ plate: newVeh.plate.trim(), capacityL: Number(newVeh.capacityL) || 0, active: newVeh.active })
+                  createVeh.mutate({
+                    plate: newVeh.plate.trim(),
+                    capacityL: Number(newVeh.capacityL) || 0,
+                    active: newVeh.active,
+                  })
                 }
               >
                 {createVeh.isPending ? "Saving..." : "Save"}
@@ -440,7 +478,7 @@ export default function AssignPage() {
               <button
                 className="px-3 py-2 rounded-lg border"
                 onClick={() => {
-                  setNewVeh({ plate: "", capacityL: 0, active: true });
+                  setNewVeh(() => ({ plate: "", capacityL: 0, active: true }));
                   setShowAddVeh(false);
                 }}
               >

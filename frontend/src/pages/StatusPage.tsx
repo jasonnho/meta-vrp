@@ -1,25 +1,29 @@
 // src/pages/StatusPage.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { Api } from "../lib/api";
 import type { HistoryItem, JobDetail, JobVehicle, JobRouteStep } from "../types";
+import { useStatusUI } from "../stores/status";
 
 const VEHICLE_STATUS = ["planned", "in_progress", "done", "done_with_issues", "cancelled"] as const;
 // Opsi generik untuk titik. Ganti sesuai enum backend jika perlu.
 const STEP_STATUS = ["planned", "visited", "skipped", "failed"] as const;
 
-type PerVehiclePick = Record<
-  string, // key = vehicle_id (vid)
-  { status?: string }
->;
-
-type PerStepPick = Record<
-  string, // key = `${vid}:${seq}`
-  { status?: string; reason?: string }
->;
-
 export default function StatusPage() {
   const qc = useQueryClient();
+  const [sp, setSp] = useSearchParams();
+
+  // ===== Store (persist) =====
+  const {
+    selectedJobId,
+    setSelectedJobId,
+    perVeh,
+    setPerVeh,
+    perStep,
+    setPerStep,
+    clearPicks,
+  } = useStatusUI();
 
   // ===== 1) Pilih Job =====
   const {
@@ -30,8 +34,21 @@ export default function StatusPage() {
     queryKey: ["jobs-history"],
     queryFn: Api.listHistory,
     staleTime: 60_000,
+    gcTime: 10 * 60_000,
   });
-  const [selectedJobId, setSelectedJobId] = useState<string>("");
+
+  // Sinkronisasi selectedJobId <-> URL (?jobId=...)
+  useEffect(() => {
+    const q = sp.get("jobId") ?? "";
+    if (q && q !== selectedJobId) setSelectedJobId(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const next = new URLSearchParams(sp);
+    if (selectedJobId) next.set("jobId", selectedJobId);
+    else next.delete("jobId");
+    setSp(next, { replace: true });
+  }, [selectedJobId, sp, setSp]);
 
   // ===== 2) Detail Job =====
   const {
@@ -42,7 +59,10 @@ export default function StatusPage() {
     queryKey: ["job-detail", selectedJobId],
     queryFn: () => Api.getJobDetail(selectedJobId),
     enabled: !!selectedJobId,
+    staleTime: 30_000,
+    gcTime: 10 * 60_000,
   });
+
   const vehicles: JobVehicle[] = useMemo(
     () => jobDetail?.vehicles ?? [],
     [jobDetail]
@@ -50,7 +70,7 @@ export default function StatusPage() {
 
   // ===== 3) Mutations =====
 
-  // Reuse: PATCH /jobs/{job_id}/vehicles/{vid}  body { status }
+  // PATCH /jobs/{job_id}/vehicles/{vid}  body { status }
   const updateVehicleStatus = useMutation({
     mutationFn: (p: { jobId: string; vid: string | number; status: string }) =>
       Api.assignJobVehicle(p.jobId, p.vid, { status: p.status }),
@@ -78,15 +98,6 @@ export default function StatusPage() {
         qc.invalidateQueries({ queryKey: ["job-detail", selectedJobId] });
     },
   });
-
-  // ===== 4) Local UI picks =====
-  const [perVeh, setPerVeh] = useState<PerVehiclePick>({});
-  const [perStep, setPerStep] = useState<PerStepPick>({});
-
-  useEffect(() => {
-    setPerVeh({});
-    setPerStep({});
-  }, [selectedJobId]);
 
   // ===== helpers =====
   const stepKey = (vid: string | number, seq: number | string) => `${vid}:${seq}`;
@@ -160,7 +171,7 @@ export default function StatusPage() {
                                 onChange={(e) =>
                                   setPerVeh((s) => ({
                                     ...s,
-                                    [vid]: { ...s[vid], status: e.target.value },
+                                    [vid]: { ...(s[vid] ?? {}), status: e.target.value },
                                   }))
                                 }
                               >
@@ -209,7 +220,7 @@ export default function StatusPage() {
                                     .map((s: JobRouteStep) => {
                                       const seq = s.sequence_index ?? 0;
                                       const key = stepKey(vid, seq);
-                                      const pickStatus = perStep[key]?.status ?? s.status ?? "pending";
+                                      const pickStatus = perStep[key]?.status ?? s.status ?? "planned";
                                       const pickReason = perStep[key]?.reason ?? "";
 
                                       return (
@@ -237,13 +248,14 @@ export default function StatusPage() {
                                                   ))}
                                                 </select>
                                                 <button
-                                                  className="px-2 rounded-md border"
+                                                  className="px-2 rounded-md border disabled:opacity-50"
+                                                  disabled={updateStepStatus.isPending}
                                                   onClick={() =>
                                                     updateStepStatus.mutate({
                                                       jobId: selectedJobId,
                                                       vid,
                                                       seq, // pakai sequence index
-                                                      status: perStep[key]?.status ?? s.status ?? "pending",
+                                                      status: perStep[key]?.status ?? s.status ?? "planned",
                                                       reason: perStep[key]?.reason || undefined, // opsional
                                                     })
                                                   }
