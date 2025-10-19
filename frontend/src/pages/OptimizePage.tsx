@@ -64,6 +64,18 @@ export default function OptimizePage() {
   // selection titik
   const { maxVehicles, setMaxVehicles, selected, setSelected } = useUI()
 
+  // --- 1. BUAT DERIVED STATE UNTUK NODE YANG DITAMPILKAN ---
+  const displayNodes = useMemo(() => {
+    if (!nodesQ.data) {
+      return [];
+    }
+    // Filter node '0' DAN hanya ambil yang jenisnya 'park'
+    return (nodesQ.data as Node[]).filter(node =>
+      node.id !== '0' && node.kind === 'park'
+    );
+  }, [nodesQ.data]); // Dependensi tetap sama
+  // --------------------------------------------------------
+
   const toggle = (id: string) => {
     const s = new Set(selected)
     s.has(id) ? s.delete(id) : s.add(id)
@@ -71,8 +83,9 @@ export default function OptimizePage() {
   }
 
   const selectAll = () => {
-    if (!nodesQ.data) return
-    setSelected(new Set((nodesQ.data as Node[]).map((n) => n.id)))
+    // if (!nodesQ.data) return // Kita sudah pakai displayNodes, jadi cek ini tidak perlu
+    // Gunakan displayNodes untuk memilih semua
+    setSelected(new Set(displayNodes.map((n) => n.id)));
   }
   const clearAll = () => setSelected(new Set())
 
