@@ -1,43 +1,108 @@
 // src/pages/AssignPage.tsx
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react" // Tambah useState
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useSearchParams } from "react-router-dom"
 import { Api } from "../lib/api"
 import type { Operator, Vehicle, HistoryItem, JobDetail, JobVehicle } from "../types"
 import { useAssignUI } from "../stores/assign"
+import StatusBadge from "../components/StatusBadge" // Import StatusBadge
 
-// shadcn ui
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+// --- SHADCN UI ---
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Separator } from "@/components/ui/separator"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Users, Truck, Save, RotateCcw } from "lucide-react"
+
+// --- ICONS ---
+import {
+  Loader2,
+  Users,
+  Truck,
+  Save,
+  RotateCcw,
+  ClipboardList,
+  FileCog,
+  BookUser,
+  AlertCircle,
+  MoreHorizontal,
+  PencilLine,
+  Trash2,
+  Plus,
+  ToggleLeft,
+  ToggleRight,
+} from "lucide-react"
 
 type PerRVSelection = Record<
   string,
   { operatorId?: string; vehicleId?: string; status?: string }
 >
 
-const STATUS_OPTIONS = ["planned", "running", "completed", "cancelled"] as const
+const STATUS_OPTIONS = ["planned", "in_progress", "done", "done_with_issues", "cancelled"] as const
 
-// helper select styled native
-function SelectNative(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select
-      {...props}
-      className={[
-        "w-full h-9 rounded-md border bg-background px-3 text-sm",
-        props.className || "",
-      ].join(" ")}
-    />
-  )
-}
+// HAPUS FUNGSI SelectNative (sudah tidak dipakai)
 
 export default function AssignPage() {
   const qc = useQueryClient()
   const [sp, setSp] = useSearchParams()
   const { toast } = useToast()
+
+  // ======= State Lokal untuk Dialog Hapus =======
+  const [deletingOperator, setDeletingOperator] = useState<Operator | null>(null)
+  const [deletingVehicle, setDeletingVehicle] = useState<Vehicle | null>(null)
 
   // ======= Store (persist) =======
   const {
@@ -67,6 +132,11 @@ export default function AssignPage() {
     staleTime: 60_000,
     gcTime: 10 * 60_000,
   })
+
+  // Filter jobs yang masih relevan untuk di-update
+  const activeJobs = useMemo(() => {
+    return jobs.filter(j => !["succeeded", "failed", "cancelled"].includes(j.status))
+  }, [jobs])
 
   // Sinkronisasi selectedJobId <-> URL (?jobId=...) dan toggle add forms (?add=op|veh)
   useEffect(() => {
@@ -99,7 +169,7 @@ export default function AssignPage() {
     queryFn: () => Api.getJobDetail(selectedJobId),
     enabled: !!selectedJobId,
     staleTime: 30_000,
-    gcTime: 10 * 60_000,
+    refetchInterval: 30_000,
   })
 
   // Kalau ganti job → reset pilihan perRV
@@ -108,17 +178,15 @@ export default function AssignPage() {
   }, [selectedJobId, clearPerRV])
 
   // ================== 3) Catalogs ==================
-  const { data: operators = [] } = useQuery<Operator[]>({
+  const { data: operators = [], isFetching: fetchingOperators } = useQuery<Operator[]>({
     queryKey: ["operators"],
     queryFn: Api.listOperators,
     staleTime: 60_000,
-    gcTime: 10 * 60_000,
   })
-  const { data: vehicles = [] } = useQuery<Vehicle[]>({
+  const { data: vehicles = [], isFetching: fetchingVehicles } = useQuery<Vehicle[]>({
     queryKey: ["vehicles"],
     queryFn: Api.listVehicles,
     staleTime: 60_000,
-    gcTime: 10 * 60_000,
   })
 
   // ================== 4) Mutations ==================
@@ -155,7 +223,10 @@ export default function AssignPage() {
   })
   const deleteOp = useMutation({
     mutationFn: Api.deleteOperator,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["operators"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["operators"] })
+      setDeletingOperator(null)
+    },
   })
   const createOp = useMutation({
     mutationFn: (p: { name: string; phone?: string; active?: boolean }) =>
@@ -185,7 +256,10 @@ export default function AssignPage() {
   })
   const deleteVeh = useMutation({
     mutationFn: Api.deleteVehicle,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["vehicles"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["vehicles"] })
+      setDeletingVehicle(null)
+    }
   })
   const createVeh = useMutation({
     mutationFn: (p: { plate: string; capacityL: number; active?: boolean }) =>
@@ -209,426 +283,584 @@ export default function AssignPage() {
 
   // ================== UI ==================
   return (
-    <section className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-tight">Assign Operator + Vehicle</h1>
-        <div className="text-sm text-muted-foreground">
-          {selectedJobId ? "Job selected" : "No job"} • {jobVehicles.length} RV
+    <section className="space-y-6 p-1">
+      {/* ====== HEADER HALAMAN ====== */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Penugasan & Katalog</h1>
+          <p className="text-muted-foreground">
+            Alokasikan operator dan kendaraan ke job, serta kelola data master.
+          </p>
         </div>
       </div>
 
-      {/* ======= Pilih Job ======= */}
-      <Card>
-        <CardHeader className="py-3">
-          <CardTitle className="text-base">Pilih Job</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <SelectNative
-            value={selectedJobId}
-            onChange={(e) => setSelectedJobId(e.target.value)}
-          >
-            <option value="">— pilih job —</option>
-            {jobs.map((j) => (
-              <option key={j.job_id} value={j.job_id}>
-                {j.status} · {new Date(j.created_at).toLocaleString()} · {j.vehicle_count} vehicles
-              </option>
-            ))}
-          </SelectNative>
+      {/* ====== TABS UTAMA ====== */}
+      <Tabs defaultValue="assign" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="assign">
+            <FileCog className="mr-2 h-4 w-4" />
+            Penugasan Job
+          </TabsTrigger>
+          <TabsTrigger value="catalog">
+            <BookUser className="mr-2 h-4 w-4" />
+            Katalog
+          </TabsTrigger>
+        </TabsList>
 
-          <div className="flex items-center gap-3 text-xs">
-            {loadingJobs && (
-              <span className="inline-flex items-center gap-1 text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Loading jobs…
-              </span>
-            )}
-            {jobsErr && (
-              <span className="text-destructive">Gagal memuat jobs: {(jobsErr as Error).message}</span>
-            )}
-            {selectedJobId && loadingDetail && (
-              <span className="inline-flex items-center gap-1 text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Loading job summary…
-              </span>
-            )}
-            {jobErr && (
-              <span className="text-destructive">Gagal memuat job: {(jobErr as Error).message}</span>
-            )}
-          </div>
-
-          {selectedJobId && jobDetail && !loadingDetail && !jobErr ? (
-            <div className="text-sm text-muted-foreground">
-              {jobDetail.status} · {new Date(jobDetail.created_at).toLocaleString()}
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      {/* ======= Daftar RV untuk di-assign ======= */}
-      {selectedJobId && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {jobVehicles.map((v) => {
-            const rvKey = String(v.vehicle_id)
-            const pick = perRV[rvKey] ?? {}
-            const canAssign = !!pick.operatorId && !!pick.vehicleId
-
-            const assignedVehPlate = vehicles.find(
-              (x) => String(x.id) === String(v.assigned_vehicle_id),
-            )?.plate
-            const assignedOpName = operators.find(
-              (x) => String(x.id) === String(v.assigned_operator_id),
-            )?.name
-
-            return (
-              <Card key={rvKey} className="overflow-hidden">
-                <CardHeader className="py-3">
-                  <CardTitle className="text-base flex items-center justify-between">
-                    <span>RV #{v.vehicle_id}</span>
-                    <Badge variant="secondary" className="capitalize">
-                      {v.status ?? "—"}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="space-y-3">
-                  <div className="text-[12px] text-muted-foreground">
-                    Route time ≈ {v.route_total_time_min ?? "—"} min
-                  </div>
-
-                  {(assignedVehPlate || assignedOpName) && (
-                    <div className="text-[12px] space-y-0.5">
-                      {assignedVehPlate && (
-                        <div>
-                          Assigned Vehicle: <span className="opacity-80">{assignedVehPlate}</span>
-                        </div>
-                      )}
-                      {assignedOpName && (
-                        <div>
-                          Assigned Operator: <span className="opacity-80">{assignedOpName}</span>
-                        </div>
-                      )}
+        {/* ===================== TAB 1: PENUGASAN JOB ===================== */}
+        <TabsContent value="assign" className="space-y-6 mt-4">
+          {/* ======= Pilih Job ======= */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-3">
+                <ClipboardList className="h-5 w-5 text-primary" />
+                Pilih Job Aktif
+              </CardTitle>
+              <CardDescription>
+                Pilih job yang sedang berjalan atau terencana untuk dialokasikan.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Select
+                value={selectedJobId}
+                onValueChange={(val) => setSelectedJobId(val)}
+                disabled={loadingJobs}
+              >
+                <SelectTrigger className="w-full text-left">
+                  <SelectValue placeholder="— Pilih job yang akan dialokasikan —" />
+                </SelectTrigger>
+                <SelectContent>
+                  {loadingJobs && (
+                    <div className="flex items-center justify-center p-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Memuat jobs...
                     </div>
                   )}
+                  {activeJobs.length === 0 && !loadingJobs && (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Tidak ada job aktif.
+                    </div>
+                  )}
+                  {activeJobs.map((j) => (
+                    <SelectItem key={j.job_id} value={j.job_id}>
+                      <div className="flex items-center justify-between w-full">
+                        <span className="font-medium">
+                          {new Date(j.created_at).toLocaleString()}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={j.status} />
+                          <Badge variant="outline">{j.vehicle_count} kendaraan</Badge>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-                  {/* Operator */}
-                  <div className="space-y-1">
-                    <div className="text-xs text-muted-foreground">Operator</div>
-                    <SelectNative
-                      value={pick.operatorId ?? ""}
-                      onChange={(e) =>
-                        setPerRV((s: PerRVSelection) => ({
-                          ...s,
-                          [rvKey]: { ...s[rvKey], operatorId: e.target.value || undefined },
-                        }))
-                      }
-                    >
-                      <option value="">— pilih operator —</option>
-                      {operators
-                        .filter((o) => o.active)
-                        .map((o) => (
-                          <option key={o.id} value={o.id}>
-                            {o.name}
-                            {o.phone ? ` (${o.phone})` : ""}
-                          </option>
-                        ))}
-                    </SelectNative>
-                  </div>
+              {/* Loading/Error States */}
+              {jobsErr && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Gagal Memuat Daftar Job</AlertTitle>
+                  <AlertDescription>{(jobsErr as Error).message}</AlertDescription>
+                </Alert>
+              )}
+              {selectedJobId && loadingDetail && (
+                <Alert className="bg-muted/50">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <AlertTitle>Memuat Detail Job...</AlertTitle>
+                  <AlertDescription>
+                    Sedang mengambil data alokasi untuk Job ID: {selectedJobId}
+                  </AlertDescription>
+                </Alert>
+              )}
+              {jobErr && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Gagal Memuat Detail Job</AlertTitle>
+                  <AlertDescription>{(jobErr as Error).message}</AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
 
-                  {/* Vehicle */}
-                  <div className="space-y-1">
-                    <div className="text-xs text-muted-foreground">Vehicle</div>
-                    <SelectNative
-                      value={pick.vehicleId ?? ""}
-                      onChange={(e) =>
-                        setPerRV((s: PerRVSelection) => ({
-                          ...s,
-                          [rvKey]: { ...s[rvKey], vehicleId: e.target.value || undefined },
-                        }))
-                      }
-                    >
-                      <option value="">— pilih vehicle —</option>
-                      {vehicles
-                        .filter((vv) => vv.active)
-                        .map((vv) => (
-                          <option key={vv.id} value={vv.id}>
-                            {vv.plate} — {vv.capacityL}L
-                          </option>
-                        ))}
-                    </SelectNative>
-                  </div>
+          {/* ======= Daftar RV untuk di-assign ======= */}
+          {selectedJobId && !loadingDetail && !jobErr && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Alokasi Kendaraan (Job #{selectedJobId.slice(0, 8)}...)</h3>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {jobVehicles.map((v) => {
+                  const rvKey = String(v.vehicle_id)
+                  const pick = perRV[rvKey] ?? {}
+                  const canAssign = !!pick.operatorId && !!pick.vehicleId
 
-                  {/* Status */}
-                  <div className="space-y-1">
-                    <div className="text-xs text-muted-foreground">Status</div>
-                    <SelectNative
-                      value={pick.status ?? "planned"}
-                      onChange={(e) =>
-                        setPerRV((s: PerRVSelection) => ({
-                          ...s,
-                          [rvKey]: { ...s[rvKey], status: e.target.value || undefined },
-                        }))
-                      }
-                    >
-                      {STATUS_OPTIONS.map((st) => (
-                        <option key={st} value={st}>
-                          {st}
-                        </option>
+                  const assignedVeh = vehicles.find(x => String(x.id) === String(v.assigned_vehicle_id))
+                  const assignedOp = operators.find(x => String(x.id) === String(v.assigned_operator_id))
+
+                  return (
+                    <Card key={rvKey} className="overflow-hidden">
+                      <CardHeader className="py-4">
+                        <CardTitle className="text-base flex items-center justify-between">
+                          <span>RV #{v.vehicle_id}</span>
+                          <StatusBadge status={v.status} />
+                        </CardTitle>
+                        <CardDescription>
+                          Estimasi Waktu: {v.route_total_time_min ?? "—"} min
+                        </CardDescription>
+                      </CardHeader>
+
+                      <CardContent className="space-y-4">
+                        {/* Info Ter-assign */}
+                        {(assignedVeh || assignedOp) && (
+                          <div className="text-xs space-y-1 p-3 rounded-md border bg-muted/50">
+                            {assignedVeh && (
+                              <div className="flex items-center gap-2">
+                                <Truck className="h-3 w-3" />
+                                <b>{assignedVeh.plate}</b> ({assignedVeh.capacityL}L)
+                              </div>
+                            )}
+                            {assignedOp && (
+                              <div className="flex items-center gap-2">
+                                <Users className="h-3 w-3" />
+                                <b>{assignedOp.name}</b>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Form Select */}
+                        <div className="space-y-3">
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`op-${rvKey}`}>Operator</Label>
+                            <Select
+                              value={pick.operatorId ?? ""}
+                              onValueChange={(val) =>
+                                setPerRV((s: PerRVSelection) => ({
+                                  ...s,
+                                  [rvKey]: { ...s[rvKey], operatorId: val || undefined },
+                                }))
+                              }
+                            >
+                              <SelectTrigger id={`op-${rvKey}`}>
+                                <SelectValue placeholder="— Pilih Operator —" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {operators.filter(o => o.active).map(o => (
+                                  <SelectItem key={o.id} value={o.id}>
+                                    {o.name} {o.phone ? `(${o.phone})` : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`veh-${rvKey}`}>Kendaraan</Label>
+                            <Select
+                              value={pick.vehicleId ?? ""}
+                              onValueChange={(val) =>
+                                setPerRV((s: PerRVSelection) => ({
+                                  ...s,
+                                  [rvKey]: { ...s[rvKey], vehicleId: val || undefined },
+                                }))
+                              }
+                            >
+                              <SelectTrigger id={`veh-${rvKey}`}>
+                                <SelectValue placeholder="— Pilih Kendaraan —" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {vehicles.filter(vv => vv.active).map(vv => (
+                                  <SelectItem key={vv.id} value={vv.id}>
+                                    {vv.plate} — {vv.capacityL}L
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Status - Opsional, biarkan default */}
+                        </div>
+
+                        <Separator />
+
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            disabled={!canAssign || assignMut.isPending}
+                            onClick={() =>
+                              assignMut.mutate({
+                                jobId: selectedJobId!,
+                                vid: v.vehicle_id,
+                                assigned_operator_id: pick.operatorId!,
+                                assigned_vehicle_id: pick.vehicleId!,
+                                status: (pick.status as any) ?? "planned",
+                              })
+                            }
+                          >
+                            {assignMut.isPending ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Save className="mr-2 h-4 w-4" />
+                            )}
+                            Assign
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setPerRV((s: PerRVSelection) => ({ ...s, [rvKey]: {} }))}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ===================== TAB 2: KATALOG ===================== */}
+        <TabsContent value="catalog" className="space-y-4 mt-4">
+          <Accordion type="multiple" defaultValue={["operators", "vehicles"]} className="w-full">
+
+            {/* --- Accordion Item: Operators --- */}
+            <AccordionItem value="operators">
+              <AccordionTrigger className="text-lg font-semibold">
+                <div className="flex items-center gap-3">
+                  <Users className="h-5 w-5" />
+                  Manajemen Operator
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Kelola data master operator.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => setShowAddOp(!showAddOp)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    {showAddOp ? "Tutup Form" : "Tambah Operator"}
+                  </Button>
+                </div>
+
+                {/* Form Add Operator */}
+                {showAddOp && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Form Operator Baru</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="op-name">Nama</Label>
+                          <Input
+                            id="op-name"
+                            placeholder="Nama Lengkap"
+                            value={newOp.name}
+                            onChange={(e) => setNewOp((s) => ({ ...s, name: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="op-phone">No. Telepon (Opsional)</Label>
+                          <Input
+                            id="op-phone"
+                            placeholder="0812..."
+                            value={newOp.phone}
+                            onChange={(e) => setNewOp((s) => ({ ...s, phone: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="op-active"
+                          checked={newOp.active}
+                          onCheckedChange={(checked) => setNewOp((s) => ({ ...s, active: !!checked }))}
+                        />
+                        <Label htmlFor="op-active" className="cursor-pointer">
+                          Aktif (Dapat ditugaskan)
+                        </Label>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          disabled={!newOp.name.trim() || createOp.isPending}
+                          onClick={() =>
+                            createOp.mutate({
+                              name: newOp.name.trim(),
+                              phone: newOp.phone.trim() || undefined,
+                              active: newOp.active,
+                            })
+                          }
+                        >
+                          {createOp.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Simpan"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setNewOp(() => ({ name: "", phone: "", active: true }))
+                            setShowAddOp(false)
+                          }}
+                        >
+                          Batal
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Tabel Operator */}
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nama</TableHead>
+                        <TableHead>Telepon</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {fetchingOperators && <tr><TableCell colSpan={4} className="text-center"><Loader2 className="h-4 w-4 mx-auto animate-spin" /></TableCell></tr>}
+                      {!fetchingOperators && operators.length === 0 && <tr><TableCell colSpan={4} className="text-center text-muted-foreground">Belum ada operator.</TableCell></tr>}
+                      {operators.map((o) => (
+                        <TableRow key={o.id}>
+                          <TableCell className="font-medium">{o.name}</TableCell>
+                          <TableCell>{o.phone ?? "—"}</TableCell>
+                          <TableCell>
+                            <Badge variant={o.active ? "default" : "secondary"}>
+                              {o.active ? "Aktif" : "Nonaktif"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => updateOp.mutate({ id: o.id, patch: { active: !o.active } })}>
+                                  {o.active ? <ToggleLeft className="mr-2 h-4 w-4" /> : <ToggleRight className="mr-2 h-4 w-4" />}
+                                  {o.active ? "Nonaktifkan" : "Aktifkan"}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive" onClick={() => setDeletingOperator(o)}>
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Hapus
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </SelectNative>
-                  </div>
+                    </TableBody>
+                  </Table>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
 
-                  <div className="flex gap-2">
-                    <Button
-                      disabled={!canAssign || assignMut.isPending}
-                      onClick={() =>
-                        assignMut.mutate({
-                          jobId: selectedJobId!,
-                          vid: v.vehicle_id,
-                          assigned_operator_id: pick.operatorId!,
-                          assigned_vehicle_id: pick.vehicleId!,
-                          status: pick.status ?? "planned",
-                        })
-                      }
-                    >
-                      {assignMut.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Assigning…
-                        </>
-                      ) : (
-                        <>
-                          <Save className="mr-2 h-4 w-4" />
-                          Assign
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setPerRV((s: PerRVSelection) => ({ ...s, [rvKey]: {} }))}
-                    >
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                      Reset
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      )}
+            {/* --- Accordion Item: Vehicles --- */}
+            <AccordionItem value="vehicles">
+              <AccordionTrigger className="text-lg font-semibold">
+                <div className="flex items-center gap-3">
+                  <Truck className="h-5 w-5" />
+                  Manajemen Kendaraan
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Kelola data master kendaraan (mobil penyiram).
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => setShowAddVeh(!showAddVeh)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    {showAddVeh ? "Tutup Form" : "Tambah Kendaraan"}
+                  </Button>
+                </div>
 
-      {/* ===================== Katalog Operators ===================== */}
-      <Card>
-        <CardHeader className="py-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Operators
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">{operators.length} item</div>
-            <Button variant="outline" size="sm" onClick={() => setShowAddOp(!showAddOp)}>
-              {showAddOp ? "Close" : "+ Add Operator"}
+                {/* Form Add Vehicle */}
+                {showAddVeh && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Form Kendaraan Baru</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="veh-plate">No. Polisi (Nopol)</Label>
+                          <Input
+                            id="veh-plate"
+                            placeholder="L 1234 ABC"
+                            value={newVeh.plate}
+                            onChange={(e) => setNewVeh((s) => ({ ...s, plate: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="veh-cap">Kapasitas (Liter)</Label>
+                          <Input
+                            id="veh-cap"
+                            type="number"
+                            placeholder="5000"
+                            value={Number.isFinite(newVeh.capacityL) ? newVeh.capacityL : ""}
+                            onChange={(e) =>
+                              setNewVeh((s) => ({
+                                ...s,
+                                capacityL: e.target.value === "" ? 0 : Number(e.target.value),
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="veh-active"
+                          checked={newVeh.active}
+                          onCheckedChange={(checked) => setNewVeh((s) => ({ ...s, active: !!checked }))}
+                        />
+                        <Label htmlFor="veh-active" className="cursor-pointer">
+                          Aktif (Dapat digunakan)
+                        </Label>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          disabled={!newVeh.plate.trim() || createVeh.isPending}
+                          onClick={() =>
+                            createVeh.mutate({
+                              plate: newVeh.plate.trim(),
+                              capacityL: Number(newVeh.capacityL) || 0,
+                              active: newVeh.active,
+                            })
+                          }
+                        >
+                          {createVeh.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Simpan"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setNewVeh(() => ({ plate: "", capacityL: 0, active: true }))
+                            setShowAddVeh(false)
+                          }}
+                        >
+                          Batal
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Tabel Kendaraan */}
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>No. Polisi</TableHead>
+                        <TableHead>Kapasitas</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {fetchingVehicles && <tr><TableCell colSpan={4} className="text-center"><Loader2 className="h-4 w-4 mx-auto animate-spin" /></TableCell></tr>}
+                      {!fetchingVehicles && vehicles.length === 0 && <tr><TableCell colSpan={4} className="text-center text-muted-foreground">Belum ada kendaraan.</TableCell></tr>}
+                      {vehicles.map((v) => (
+                        <TableRow key={v.id}>
+                          <TableCell className="font-medium">{v.plate}</TableCell>
+                          <TableCell>{v.capacityL} L</TableCell>
+                          <TableCell>
+                            <Badge variant={v.active ? "default" : "secondary"}>
+                              {v.active ? "Aktif" : "Nonaktif"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => updateVeh.mutate({ id: v.id, patch: { active: !v.active } })}>
+                                  {v.active ? <ToggleLeft className="mr-2 h-4 w-4" /> : <ToggleRight className="mr-2 h-4 w-4" />}
+                                  {v.active ? "Nonaktifkan" : "Aktifkan"}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive" onClick={() => setDeletingVehicle(v)}>
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Hapus
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </TabsContent>
+      </Tabs>
+
+      {/* ====== DIALOG HAPUS OPERATOR ====== */}
+      <AlertDialog
+        open={!!deletingOperator}
+        onOpenChange={(open) => !open && setDeletingOperator(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Anda yakin ingin menghapus operator ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Operator <span className="font-bold">"{deletingOperator?.name}"</span> akan
+              dihapus secara permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deletingOperator) deleteOp.mutate(deletingOperator.id)
+              }}
+              disabled={deleteOp.isPending}
+              asChild
+            >
+              <AlertDialogAction>
+                {deleteOp.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                Ya, Hapus
+              </AlertDialogAction>
             </Button>
-          </div>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-          {showAddOp && (
-            <div className="grid md:grid-cols-4 gap-2 p-2 rounded-md border">
-              <Input
-                placeholder="Name"
-                value={newOp.name}
-                onChange={(e) => setNewOp((s) => ({ ...s, name: e.target.value }))}
-              />
-              <Input
-                placeholder="Phone (opsional)"
-                value={newOp.phone}
-                onChange={(e) => setNewOp((s) => ({ ...s, phone: e.target.value }))}
-              />
-              <label className="flex items-center gap-2 text-sm px-2">
-                <input
-                  type="checkbox"
-                  checked={newOp.active}
-                  onChange={(e) => setNewOp((s) => ({ ...s, active: e.target.checked }))}
-                />
-                Active
-              </label>
-              <div className="flex gap-2">
-                <Button
-                  disabled={!newOp.name.trim() || createOp.isPending}
-                  onClick={() =>
-                    createOp.mutate({
-                      name: newOp.name.trim(),
-                      phone: newOp.phone.trim() || undefined,
-                      active: newOp.active,
-                    })
-                  }
-                >
-                  {createOp.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save"
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setNewOp(() => ({ name: "", phone: "", active: true }))
-                    setShowAddOp(false)
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <ul className="divide-y rounded-md border">
-            {operators.map((o) => (
-              <li key={o.id} className="py-2 px-3 flex items-center gap-2 justify-between">
-                <div className="min-w-0">
-                  <div className="font-medium text-sm truncate">{o.name}</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {o.phone ?? "—"} · {o.active ? "Active" : "Inactive"} ·{" "}
-                    {new Date(o.createdAt).toLocaleString()}
-                  </div>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => updateOp.mutate({ id: o.id, patch: { active: !o.active } })}
-                  >
-                    {o.active ? "Disable" : "Enable"}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      if (confirm(`Delete operator "${o.name}"?`)) deleteOp.mutate(o.id)
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
-
-      {/* ===================== Katalog Vehicles ===================== */}
-      <Card>
-        <CardHeader className="py-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Truck className="h-4 w-4" />
-            Vehicles
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">{vehicles.length} item</div>
-            <Button variant="outline" size="sm" onClick={() => setShowAddVeh(!showAddVeh)}>
-              {showAddVeh ? "Close" : "+ Add Vehicle"}
+      {/* ====== DIALOG HAPUS KENDARAAN ====== */}
+      <AlertDialog
+        open={!!deletingVehicle}
+        onOpenChange={(open) => !open && setDeletingVehicle(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Anda yakin ingin menghapus kendaraan ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Kendaraan <span className="font-bold">"{deletingVehicle?.plate}"</span> akan
+              dihapus secara permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deletingVehicle) deleteVeh.mutate(deletingVehicle.id)
+              }}
+              disabled={deleteVeh.isPending}
+              asChild
+            >
+              <AlertDialogAction>
+                {deleteVeh.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                Ya, Hapus
+              </AlertDialogAction>
             </Button>
-          </div>
-
-          {showAddVeh && (
-            <div className="grid md:grid-cols-4 gap-2 p-2 rounded-md border">
-              <Input
-                placeholder="Plate (e.g., L123)"
-                value={newVeh.plate}
-                onChange={(e) => setNewVeh((s) => ({ ...s, plate: e.target.value }))}
-              />
-              <Input
-                type="number"
-                placeholder="Capacity (L)"
-                value={Number.isFinite(newVeh.capacityL) ? newVeh.capacityL : 0}
-                onChange={(e) =>
-                  setNewVeh((s) => ({
-                    ...s,
-                    capacityL: e.target.value === "" ? 0 : Number(e.target.value),
-                  }))
-                }
-              />
-              <label className="flex items-center gap-2 text-sm px-2">
-                <input
-                  type="checkbox"
-                  checked={newVeh.active}
-                  onChange={(e) => setNewVeh((s) => ({ ...s, active: e.target.checked }))}
-                />
-                Active
-              </label>
-              <div className="flex gap-2">
-                <Button
-                  disabled={!newVeh.plate.trim() || createVeh.isPending}
-                  onClick={() =>
-                    createVeh.mutate({
-                      plate: newVeh.plate.trim(),
-                      capacityL: Number(newVeh.capacityL) || 0,
-                      active: newVeh.active,
-                    })
-                  }
-                >
-                  {createVeh.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save"
-                  )}
-                </Button>
-                <Button
-                    variant="outline"
-                    onClick={() => {
-                      setNewVeh(() => ({ plate: "", capacityL: 0, active: true }))
-                      setShowAddVeh(false)
-                    }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <ul className="divide-y rounded-md border">
-            {vehicles.map((v) => (
-              <li key={v.id} className="py-2 px-3 flex items-center gap-2 justify-between">
-                <div className="min-w-0">
-                  <div className="font-medium text-sm truncate">{v.plate}</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {v.capacityL} L · {v.active ? "Active" : "Inactive"} ·{" "}
-                    {new Date(v.createdAt).toLocaleString()}
-                  </div>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => updateVeh.mutate({ id: v.id, patch: { active: !v.active } })}
-                  >
-                    {v.active ? "Disable" : "Enable"}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      if (confirm(`Delete vehicle "${v.plate}"?`)) deleteVeh.mutate(v.id)
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }

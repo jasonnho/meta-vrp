@@ -6,6 +6,9 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { router } from "@/router"
 import "@/index.css"
+// --- TAMBAHKAN BARIS INI ---
+import 'leaflet/dist/leaflet.css'
+// ---------------------------
 
 const qc = new QueryClient()
 
