@@ -128,52 +128,101 @@ def ensure_capacity_with_refills(
     fixed = route[:]  # copy
     inserted = 0
 
+    # Asumsi mulai dari depot (indeks 0) dengan muatan 0
+    rem = 0.0
+
     i = 0
-    rem = 0
     while i < len(fixed):
         nid = fixed[i]
-        n = nodes[nid]
+        # Pastikan node ada di data, jika tidak, lewati
+        n = nodes.get(nid)
+        if not n:
+            i += 1
+            continue
 
         if n.type == "refill":
             rem = vehicle_capacity
-            # (optional) kalau mau, masih boleh buang refill berurutan persis yang sama,
-            # tapi JANGAN pernah buang refill di posisi 1 (setelah depot).
             i += 1
             continue
 
         if n.type == "park":
-            if n.demand_liters > rem:
-                # perlu refill sebelum park ini
+            # Cek apakah demand > sisa muatan.
+            # (Asumsi dari app.py: n.demand_liters <= vehicle_capacity)
+            if n.demand_liters > (rem + 1e-9):  # tambah toleransi float
+                # Perlu refill sebelum park ini
                 if not refill_ids:
-                    # tidak bisa diperbaiki
+                    # Tidak bisa diperbaiki
                     i += 1
                     continue
+
                 prev_id = fixed[i - 1] if i > 0 else depot_id
+                prev_node = nodes.get(prev_id)
+
+                # *** PENTING: Cek apakah sebelumnya SUDAH refill ***
+                if prev_node and prev_node.type == "refill":
+                    # Ini adalah error data (demand taman > kapasitas)
+                    # Kita tidak bisa fix, lewati saja park ini.
+                    i += 1
+                    continue
+
                 r = _nearest_refill_delta(prev_id, nid, refill_ids, tm)
                 if r is None:
                     i += 1
                     continue
+
                 fixed.insert(i, r)
                 rem = vehicle_capacity  # reset setelah refill
                 inserted += 1
-                # Jangan maju index; evaluasi park yang sama lagi
+
+                # Jangan maju index (i += 1);
+                # biarkan loop while memproses refill yg baru disisipkan (di index i),
+                # lalu di loop berikutnya memproses ulang park ini (di index i+1).
                 continue
             else:
+                # Muatan cukup
                 rem -= n.demand_liters
-        # depot: biarkan
+
+        # node adalah depot atau park yg sukses dilayani
         i += 1
 
-    # Bersihkan refill duplikat berurutan
+    # === PERBAIKAN DARI SEBELUMNYA (Refill -> Refill) ===
+    # Bersihkan refill berurutan (Refill -> Refill), APAPUN ID-nya
     j = 1
     while j < len(fixed):
-        if nodes[fixed[j]].type == "refill" and fixed[j] == fixed[j - 1]:
+        # Cek apakah node ini DAN node sebelumnya adalah refill
+        node_j = nodes.get(fixed[j])
+        node_prev = nodes.get(fixed[j - 1])
+
+        if (
+            node_j
+            and node_j.type == "refill"
+            and node_prev
+            and node_prev.type == "refill"
+        ):
+            # Ada Refill -> Refill (misal 82 -> 85)
+            # Buang node INI (yang kedua, di index j)
             fixed.pop(j)
+            # Jangan increment j, kita perlu cek lagi di posisi j yg baru
         else:
             j += 1
+    # === AKHIR PERBAIKAN Refill -> Refill ===
 
-    # Trim refill di [depot, ...] dan [..., depot]
-    if len(fixed) >= 3 and fixed[-1] == depot_id and nodes[fixed[-2]].type == "refill":
-        fixed.pop(-2)
+    # === PERBAIKAN ERROR PYLANCE DI SINI ===
+    # Trim refill di [..., depot]
+    if len(fixed) >= 3 and fixed[-1] == depot_id:
+        # Akses node nya dulu, baru cek type nya
+        node_before_depot = nodes.get(fixed[-2])
+        if node_before_depot and node_before_depot.type == "refill":
+            fixed.pop(-2)
+
+    # (Opsional) Trim refill di [depot, ...]
+    if len(fixed) >= 3 and fixed[0] == depot_id:
+        # Akses node nya dulu, baru cek type nya
+        node_after_depot = nodes.get(fixed[1])
+        if node_after_depot and node_after_depot.type == "refill":
+            # Asumsi KOSONG (rem=0.0 di atas): JANGAN HAPUS
+            pass
+    # === AKHIR PERBAIKAN PYLANCE ===
 
     return fixed, inserted
 
@@ -238,6 +287,9 @@ def best_insertion_index_for_node(
     return best_j
 
 
+# Di engine/utils.py
+
+
 def ensure_groups_single_vehicle(
     routes: List[List[str]],
     groups: Dict[str, List[str]],
@@ -248,60 +300,79 @@ def ensure_groups_single_vehicle(
     refill_ids: List[str],
 ) -> List[List[str]]:
     """
-    Pastikan semua anggota grup (base_id) ada di rute yang sama.
-    Jika tersebar, pindahkan minoritas ke rute mayoritas (dominant route) dan sisipkan
-    di posisi terbaik satu per satu. Setelah itu, perbaiki kapasitas (auto-refill).
-    """
-    # indeks: sub_id -> (r_idx, pos)
-    pos_map: Dict[str, Tuple[int, int]] = {}
-    for ri, r in enumerate(routes):
-        for i, nid in enumerate(r):
-            pos_map[nid] = (ri, i)
+    Memastikan semua anggota grup (split-node) ada di rute yang sama,
+    berurutan (contiguous), dan sesuai urutan sequence (part 1, 2, 3).
 
+    Contoh: Jika ada grup '1': ['1#1', '1#2', '1#3']
+    1. Cari rute yang berisi '1#1' (ini jadi rute target).
+    2. Hapus '1#2' dan '1#3' dari rute MANAPUN mereka berada.
+    3. Sisipkan '1#2' dan '1#3' langsung setelah '1#1' di rute target.
+       Hasil: [..., '1#1', '1#2', '1#3', ...]
+    4. Panggil ensure_all_routes_capacity, yang akan menambah refill
+       jika perlu, misal: [..., '1#1', 'REFILL_A', '1#2', 'REFILL_B', '1#3', ...]
+    """
     new_routes = [r[:] for r in routes]
 
     for base, parts in groups.items():
-        # Abaikan grup yang bukan 'park' (mis. depot/refill)
-        # asumsikan sub_id yang ada di routes pasti dari selected parks
-        # Kumpulkan rute tempat anggota berada
-        count_by_route: Dict[int, int] = {}
-        member_locs: Dict[str, Tuple[int, int]] = {}
-        for p in parts:
-            if p not in pos_map:
-                continue
-            ri, idx = pos_map[p]
-            member_locs[p] = (ri, idx)
-            count_by_route[ri] = count_by_route.get(ri, 0) + 1
-        if not count_by_route:
+        # parts sudah diurutkan oleh build_groups_from_expanded_ids
+        # misal: ['1#1', '1#2', '1#3']
+        if len(parts) <= 1:
+            continue  # Bukan grup split, abaikan
+
+        anchor_part = parts[0]  # e.g., '1#1'
+        other_parts = parts[1:]  # e.g., ['1#2', '1#3']
+
+        # 1. Tentukan rute target (berdasarkan 'anchor_part')
+        target_route_idx = -1
+        for ri, r in enumerate(new_routes):
+            if anchor_part in r:
+                target_route_idx = ri
+                break
+
+        if target_route_idx == -1:
+            # Anchor ('1#1') tidak ditemukan di rute manapun.
+            # Ini bisa terjadi jika algoritma ALNS menghapusnya.
+            # Kita bisa coba cari rute target dari 'other_parts',
+            # tapi untuk sekarang, kita lewati saja grup ini.
             continue
-        # tentukan rute dominan (terbanyak anggota)
-        target_route = max(count_by_route.items(), key=lambda kv: kv[1])[0]
 
-        # Pindahkan semua anggota yang bukan di target_route
-        for p in parts:
-            if p not in member_locs:
-                continue
-            ri, idx = member_locs[p]
-            if ri == target_route:
-                continue
-            # hapus dari rute lama
-            old = new_routes[ri]
-            # re-locate posisi map untuk rute lama
-            try:
-                idx_real = old.index(p)
-            except ValueError:
-                continue
-            old.pop(idx_real)
+        target_route = new_routes[target_route_idx]
 
-            # sisip ke rute target pada posisi terbaik
-            tgt = new_routes[target_route]
-            j = best_insertion_index_for_node(tgt, p, nodes, tm)
-            tgt.insert(j, p)
+        # 2. Hapus SEMUA 'other_parts' ('1#2', '1#3', ...) dari SEMUA rute
 
-            # update pos_map yang minimal
-            pos_map[p] = (target_route, j)
+        # Hapus dari rute LAIN
+        for ri, r in enumerate(new_routes):
+            if ri == target_route_idx:
+                continue  # Lewati rute target
 
-    # kapasitas safety pass (auto-refill)
+            # Iterasi terbalik supaya .pop() tidak menggeser indeks
+            for i in range(len(r) - 1, -1, -1):
+                if r[i] in other_parts:
+                    r.pop(i)
+
+        # Hapus dari rute TARGET (jika mereka ada di sana tapi terpencar)
+        for i in range(len(target_route) - 1, -1, -1):
+            if target_route[i] in other_parts:
+                target_route.pop(i)
+
+        # 3. Cari posisi 'anchor_part' ('1#1') SEKARANG
+        try:
+            # Cari ulang posisinya, mungkin bergeser
+            anchor_pos = target_route.index(anchor_part)
+        except ValueError:
+            # Seharusnya tidak terjadi, tapi jika '1#1' ikut terhapus
+            # (logika di atas seharusnya mencegah ini), kita tidak bisa lanjut.
+            continue
+
+        # 4. Sisipkan 'other_parts' ('1#2', '1#3') BERURUTAN
+        #    langsung setelah 'anchor_part'
+        for i, part_to_insert in enumerate(other_parts):
+            # insert di anchor_pos + 1, anchor_pos + 2, ...
+            target_route.insert(anchor_pos + 1 + i, part_to_insert)
+
+    # 5. Panggil safety pass untuk kapasitas (auto-refill)
+    #    Ini SANGAT PENTING. Dia akan menambah refill DI ANTARA
+    #    '1#1' dan '1#2' jika memang dibutuhkan.
     fixed, _ = ensure_all_routes_capacity(
         new_routes, nodes, vehicle_capacity, refill_ids, tm, depot_id
     )
