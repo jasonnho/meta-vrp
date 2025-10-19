@@ -7,8 +7,13 @@ import type { HistoryItem, JobDetail, JobStatus } from "../types"
 import StatusBadge from "../components/StatusBadge"
 import { minutesToHHMM } from "../lib/format"
 import { useLogsUI } from "../stores/logs"
-
-// --- SHADCN UI (YANG BARU DITAMBAH) ---
+// --- TAMBAHAN IMPORT BARU ---
+import { format } from "date-fns"
+import { cn } from "@/lib/utils"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar" // Pastikan ini sudah ter-install
+// ----------------------------
+// --- SHADCN UI ---
 import {
   Select,
   SelectContent,
@@ -28,13 +33,11 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
-import { ScrollArea } from "@/components/ui/scroll-area" // Untuk Dialog
-import { DialogClose } from "@/components/ui/dialog" // Untuk tombol close 'x'
-import { Separator } from "@/components/ui/separator" // Untuk Dialog
-
-// --- (YANG LAMA) ---
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { DialogClose } from "@/components/ui/dialog"
+// Hapus import Separator (tidak terpakai)
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { Input } from "@/components/ui/input" // Hapus Input jika tidak terpakai (ternyata terpakai di DetailsContent?) -> Biarkan dulu
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -52,27 +55,27 @@ import {
   DialogHeader as DialogHeaderUI,
   DialogTitle as DialogTitleUI,
 } from "@/components/ui/dialog"
-import { useToast } from "@/hooks/use-toast"
+// Hapus import useToast (tidak terpakai)
 
 // --- ICONS ---
 import {
   Loader2,
-  Filter,
+  // Hapus Filter (tidak terpakai)
   Eye,
-  History, // baru
-  ListFilter, // baru
-  CalendarDays, // baru
-  X, // baru
-  Inbox, // baru
-  AlertCircle, // baru
-  Clock, // baru
-  Truck, // baru
-  MapPin, // baru
-  Hash, // baru
-  Calendar, // baru
-  Info, // baru
-  Users, // baru
-  ListTree, // baru
+  History,
+  ListFilter,
+  CalendarDays,
+  X,
+  Inbox,
+  AlertCircle,
+  Clock,
+  Truck,
+  MapPin,
+  Hash,
+  // Hapus Calendar Icon (sudah ada komponennya)
+  Info,
+  Users,
+  ListTree,
 } from "lucide-react"
 
 // helper: YYYY-MM-DD lokal
@@ -95,7 +98,7 @@ const STATUS_OPTIONS: Array<{ value: "ALL" | JobStatus, label: string }> = [
 export default function LogsPage() {
   const { status, setStatus, fromDate, setFromDate, toDate, setToDate } = useLogsUI()
   const [sp, setSp] = useSearchParams()
-  const { toast } = useToast()
+  // Hapus toast (tidak terpakai)
 
   // ===== Sinkronisasi Filter <-> URL =====
   useEffect(() => {
@@ -130,7 +133,7 @@ export default function LogsPage() {
   const q = useQuery<HistoryItem[]>({
     queryKey: ["jobs-history"],
     queryFn: Api.listHistory,
-    refetchInterval: 30_000, // Auto-refresh setiap 30 detik
+    refetchInterval: 30_000,
     staleTime: 15_000,
   })
 
@@ -175,8 +178,6 @@ export default function LogsPage() {
     setSp(next, { replace: true })
   }
 
-  // Toast error (dihapus dari sini agar tidak spam, sudah ditangani di state error di bawah)
-
   return (
     <section className="space-y-6 p-1">
       {/* ====== HEADER & FILTER ====== */}
@@ -189,9 +190,10 @@ export default function LogsPage() {
           </p>
         </div>
 
+        {/* --- PERBAIKI BAGIAN FILTER INI --- */}
         {/* Filter Area */}
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-          {/* Filter Status (UPGRADE ke shadcn Select) */}
+          {/* Filter Status (Tidak berubah) */}
           <div className="space-y-1 w-full sm:w-48">
             <Label htmlFor="filter-status" className="text-xs">Status</Label>
             <Select
@@ -211,37 +213,65 @@ export default function LogsPage() {
             </Select>
           </div>
 
-          {/* Filter From */}
+          {/* Filter From Tanggal (Popover + Calendar) */}
           <div className="space-y-1 w-full sm:w-auto">
             <Label htmlFor="filter-from" className="text-xs">Dari Tanggal</Label>
-            <div className="relative">
-              <CalendarDays className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="filter-from"
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="pl-8"
-              />
-            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="filter-from"
+                  variant={"outline"}
+                  className={cn(
+                    "w-full sm:w-[240px] justify-start text-left font-normal",
+                    !fromDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  {fromDate ? format(new Date(fromDate + "T00:00:00"), "PPP") : <span>Pilih tanggal</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={fromDate ? new Date(fromDate + "T00:00:00") : undefined}
+                  // Beri tipe 'Date | undefined' pada parameter 'date'
+                  onSelect={(date: Date | undefined) => setFromDate(date ? format(date, "yyyy-MM-dd") : "")}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
-          {/* Filter To */}
+          {/* Filter Sampai Tanggal (Popover + Calendar) */}
           <div className="space-y-1 w-full sm:w-auto">
             <Label htmlFor="filter-to" className="text-xs">Sampai Tanggal</Label>
-            <div className="relative">
-              <CalendarDays className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="filter-to"
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="pl-8"
-              />
-            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="filter-to"
+                  variant={"outline"}
+                  className={cn(
+                    "w-full sm:w-[240px] justify-start text-left font-normal",
+                    !toDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  {toDate ? format(new Date(toDate + "T00:00:00"), "PPP") : <span>Pilih tanggal</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={toDate ? new Date(toDate + "T00:00:00") : undefined}
+                  // Beri tipe 'Date | undefined' pada parameter 'date'
+                  onSelect={(date: Date | undefined) => setToDate(date ? format(date, "yyyy-MM-dd") : "")}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
-          {/* Tombol Clear Filter */}
+          {/* Tombol Clear Filter (Tidak berubah) */}
           <div className="flex items-end">
             <Button
               variant="ghost"
@@ -253,12 +283,15 @@ export default function LogsPage() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-        </div>
+        </div> {/* <-- TAMBAHKAN DIV PENUTUP INI */}
+        {/* --- BATAS PERBAIKAN FILTER --- */}
+
       </div>
 
       {/* ====== TABEL ====== */}
       <Card className="overflow-hidden">
-        <CardHeader className="flex-row items-center justify-between py-4">
+        {/* ... (Isi Card Tabel tidak berubah) ... */}
+         <CardHeader className="flex-row items-center justify-between py-4">
           <CardTitle className="text-lg flex items-center gap-3">
             <History className="h-5 w-5 text-primary" />
             <span>
@@ -377,7 +410,7 @@ export default function LogsPage() {
 
           {/* Konten Dialog (Scrollable) */}
           <ScrollArea className="flex-1 overflow-y-auto">
-            <div className="px-6 py-4">
+            <div className="px-6 py-4"> {/* <-- Wrapper div ini penting */}
               {!selectedId ? (
                 <div className="text-sm text-muted-foreground p-4">No job selected.</div>
               ) : detailQ.isLoading ? (
@@ -396,10 +429,9 @@ export default function LogsPage() {
                   </AlertDescription>
                 </Alert>
               ) : detailQ.data ? (
-                // Gunakan TABS di sini!
                 <DetailsContent detail={detailQ.data} />
               ) : null}
-            </div>
+            </div> {/* <-- Pastikan div ini ditutup */}
           </ScrollArea>
         </DialogContent>
       </Dialog>
@@ -407,7 +439,8 @@ export default function LogsPage() {
   )
 }
 
-// ====== KOMPONEN BARU: DETAILS CONTENT (dengan TABS) ======
+// ====== KOMPONEN DETAILS CONTENT (dengan TABS) ======
+// ... (Komponen DetailsContent tidak perlu diubah) ...
 function DetailsContent({ detail }: { detail: JobDetail }) {
   const vehicles = detail.vehicles ?? []
   const routes = detail.routes ?? []
@@ -442,7 +475,7 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <CalendarDays className="h-5 w-5 text-muted-foreground" />
               <div>
                 <div className="text-xs text-muted-foreground">Created At</div>
                 <div className="font-medium">{new Date(detail.created_at).toLocaleString()}</div>
@@ -490,7 +523,6 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
                         <TableCell>{(v as any).plate ?? "—"}</TableCell>
                         <TableCell>{(v as any).operator?.name ?? "—"}</TableCell>
                         <TableCell className="capitalize">
-                          {/* Asumsi 'status' di sini adalah status kendaraan, bukan job */}
                           <StatusBadge status={((v as any).status ?? "unknown") as JobStatus} />
                         </TableCell>
                         <TableCell>

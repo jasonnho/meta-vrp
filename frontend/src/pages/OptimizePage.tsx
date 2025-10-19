@@ -1,5 +1,5 @@
 // src/pages/OptimizePage.tsx
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Api } from "../lib/api"
 import type { OptimizeResponse, Node, Group } from "../types"
@@ -23,6 +23,7 @@ import {
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Progress } from "@/components/ui/progress"
 // --- (YANG LAMA) ---
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -88,6 +89,8 @@ export default function OptimizePage() {
   const { lastResult, setLastResult, clearLastResult } = useOptimizeMem()
   const [groupQuery, setGroupQuery] = useState("")
 
+  const [progress, setProgress] = useState(0)
+
   const optimize = useMutation({
     mutationFn: (payload: any) => Api.optimize(payload),
     onSuccess: (res, variables) => {
@@ -144,6 +147,42 @@ export default function OptimizePage() {
         : true,
     )
   }, [groupsQ.data, groupQuery])
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout | undefined;
+
+    if (optimize.isPending) {
+      setProgress(0); // Selalu reset saat mutasi baru dimulai
+
+      const interval = 300; // Update setiap 300ms
+      const totalDuration = 30 * 1000; // 30 detik
+      // Hitung berapa persen kenaikan setiap interval
+      const increment = (interval / totalDuration) * 100; // = 1%
+
+      timer = setInterval(() => {
+        setProgress((prev) => {
+          const newProgress = prev + increment;
+          if (newProgress >= 100) {
+            clearInterval(timer);
+            return 100; // Selesai
+          }
+          return newProgress;
+        });
+      }, interval);
+    }
+
+    // Cleanup function (dijalankan saat unmount atau saat isPending berubah)
+    return () => {
+      clearInterval(timer);
+      // Saat mutasi selesai (onSuccess/onError), isPending jadi false,
+      // hook ini akan re-run. Cleanup dari run sebelumnya dipanggil.
+      // Kita reset progress di sini jika sudah tidak pending.
+      if (!optimize.isPending) {
+        setProgress(0);
+      }
+    };
+  }, [optimize.isPending]); // Hanya bergantung pada status isPending
+  // --------------------------------------------------
 
   return (
     <section className="space-y-6 p-1"> {/* Tambah padding sedikit */}
@@ -259,9 +298,10 @@ export default function OptimizePage() {
 
                   {/* Tombol Run */}
                   <Button
-                    size="lg" // Buat lebih besar
+                    size="lg"
                     className="w-full"
-                    disabled={!canRun}
+                    // Tombol non-aktif jika tidak bisa run ATAU jika sedang berjalan
+                    disabled={!canRun || optimize.isPending}
                     onClick={handleRun}
                   >
                     {optimize.isPending ? (
@@ -276,6 +316,17 @@ export default function OptimizePage() {
                       </>
                     )}
                   </Button>
+
+                  {/* --- TAMBAHKAN BLOK INI (Progress Bar) --- */}
+                  {optimize.isPending && (
+                    <div className="space-y-2 pt-2 text-center">
+                      <Progress value={progress} className="w-full" />
+                      <p className="text-sm text-muted-foreground">
+                        Estimasi waktu: 30 detik... ({Math.round(progress)}%)
+                      </p>
+                    </div>
+                  )}
+                  {/* --- BATAS BLOK TAMBAHAN --- */}
 
                   {/* Pesan Error jika gagal run */}
                   {optimize.isError && (
