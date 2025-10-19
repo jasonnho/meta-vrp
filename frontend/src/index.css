@@ -2,6 +2,7 @@
    index.css (VERSI YANG SUDAH DIPERBAIKI)
    ================================================================= */
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap');
 /* 1. Direktif WAJIB di paling atas. Tanpa ini, semua tidak akan jalan. */
 @tailwind base;
 @tailwind components;
@@ -31,6 +32,7 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
     --radius: 0.75rem;
+    --font-sans: "Inter", sans-serif;
   }
 
   .dark {

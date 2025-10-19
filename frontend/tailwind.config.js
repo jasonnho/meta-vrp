@@ -1,3 +1,5 @@
+import { fontFamily } from "tailwindcss/defaultTheme" // <-- 1. Import
+
 export default {
     darkMode: ["class"],
     content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
@@ -8,6 +10,9 @@ export default {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
+		fontFamily: {
+            sans: ["var(--font-sans)", ...fontFamily.sans],
+        },
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
