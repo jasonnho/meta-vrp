@@ -5,6 +5,7 @@ import GroupsPage from "./pages/GroupsPage";
 import AssignPage from "./pages/AssignPage";
 import LogsPage from "./pages/LogsPage";
 import StatusPage from "./pages/StatusPage";
+import { Toaster } from "@/components/ui/toaster"
 
 function Sidebar() {
   const link =

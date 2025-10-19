@@ -1,4 +1,14 @@
-import type { ReactNode } from "react";
+// src/components/Modal.tsx
+import type { ReactNode } from "react"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@/components/ui/dialog"
+import { X } from "lucide-react"
 
 export default function Modal({
   open,
@@ -6,37 +16,36 @@ export default function Modal({
   title,
   children,
 }: {
-  open: boolean;
-  onClose: () => void;
-  title?: string;
-  children: ReactNode;
+  open: boolean
+  onClose: () => void
+  title?: string
+  children: ReactNode
 }) {
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
-      {/* backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      {/* wrapper scrollable */}
-      <div className="absolute inset-0 flex items-start justify-center p-4 overflow-y-auto">
-        {/* pakai margin top & bottom biar ada ruang saat scroll */}
-        <div className="card w-full max-w-4xl my-8 overflow-hidden">
-          {/* header tetap */}
-          <div className="card-h flex items-center justify-between sticky top-0 bg-white dark:bg-zinc-950">
-            <span>{title ?? "Details"}</span>
-            <button className="btn-ghost" onClick={onClose} aria-label="Close">
-              Close
-            </button>
+    <Dialog open={open} onOpenChange={(v) => (!v ? onClose() : void 0)}>
+      <DialogContent
+        // ukuran & responsif
+        className="sm:max-w-4xl w-[95vw] p-0 overflow-hidden"
+      >
+        {/* Header sticky agar tombol close & judul selalu terlihat */}
+        <DialogHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur px-4 py-3 border-b">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-base font-semibold">
+              {title ?? "Details"}
+            </DialogTitle>
+            <DialogClose asChild>
+              <Button variant="ghost" size="icon" aria-label="Close">
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogClose>
           </div>
-          {/* area konten scroll */}
-          <div className="card-b max-h-[80vh] overflow-y-auto">
-            {children}
-          </div>
+        </DialogHeader>
+
+        {/* Konten scrollable, batasi tinggi biar modal nggak kepanjangan */}
+        <div className="max-h-[80vh] overflow-y-auto px-4 py-4">
+          {children}
         </div>
-      </div>
-    </div>
-  );
+      </DialogContent>
+    </Dialog>
+  )
 }
