@@ -8,8 +8,32 @@ import StatusBadge from "../components/StatusBadge"
 import { minutesToHHMM } from "../lib/format"
 import { useLogsUI } from "../stores/logs"
 
-// shadcn ui
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+// --- SHADCN UI (YANG BARU DITAMBAH) ---
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
+import { ScrollArea } from "@/components/ui/scroll-area" // Untuk Dialog
+import { DialogClose } from "@/components/ui/dialog" // Untuk tombol close 'x'
+import { Separator } from "@/components/ui/separator" // Untuk Dialog
+
+// --- (YANG LAMA) ---
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
@@ -29,7 +53,27 @@ import {
   DialogTitle as DialogTitleUI,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Filter, Eye } from "lucide-react"
+
+// --- ICONS ---
+import {
+  Loader2,
+  Filter,
+  Eye,
+  History, // baru
+  ListFilter, // baru
+  CalendarDays, // baru
+  X, // baru
+  Inbox, // baru
+  AlertCircle, // baru
+  Clock, // baru
+  Truck, // baru
+  MapPin, // baru
+  Hash, // baru
+  Calendar, // baru
+  Info, // baru
+  Users, // baru
+  ListTree, // baru
+} from "lucide-react"
 
 // helper: YYYY-MM-DD lokal
 function ymdLocal(d: Date) {
@@ -38,6 +82,15 @@ function ymdLocal(d: Date) {
   const da = String(d.getDate()).padStart(2, "0")
   return `${y}-${m}-${da}`
 }
+
+const STATUS_OPTIONS: Array<{ value: "ALL" | JobStatus, label: string }> = [
+  { value: "ALL", label: "Semua Status" },
+  { value: "planned", label: "Planned" },
+  { value: "running", label: "Running" },
+  { value: "succeeded", label: "Succeeded" },
+  { value: "failed", label: "Failed" },
+  { value: "cancelled", label: "Cancelled" },
+]
 
 export default function LogsPage() {
   const { status, setStatus, fromDate, setFromDate, toDate, setToDate } = useLogsUI()
@@ -50,14 +103,7 @@ export default function LogsPage() {
     const f = sp.get("from") ?? ""
     const t = sp.get("to") ?? ""
 
-    const allowed: Array<"ALL" | JobStatus> = [
-      "ALL",
-      "planned",
-      "running",
-      "succeeded",
-      "failed",
-      "cancelled",
-    ]
+    const allowed = STATUS_OPTIONS.map(opt => opt.value)
     const normalized = s ? (allowed.includes(s as any) ? (s as any) : "ALL") : "ALL"
 
     if (normalized !== status) setStatus(normalized)
@@ -84,8 +130,8 @@ export default function LogsPage() {
   const q = useQuery<HistoryItem[]>({
     queryKey: ["jobs-history"],
     queryFn: Api.listHistory,
-    staleTime: 60_000,
-    gcTime: 10 * 60_000,
+    refetchInterval: 30_000, // Auto-refresh setiap 30 detik
+    staleTime: 15_000,
   })
 
   const rows = useMemo(() => {
@@ -101,6 +147,12 @@ export default function LogsPage() {
     })
   }, [q.data, status, fromDate, toDate])
 
+  const clearFilters = () => {
+    setStatus("ALL")
+    setFromDate("")
+    setToDate("")
+  }
+
   // ===== Detail via URL ?detail=<jobId> =====
   const selectedId = sp.get("detail")
   const open = !!selectedId
@@ -110,7 +162,6 @@ export default function LogsPage() {
     queryFn: () => Api.getJobDetail(selectedId as string),
     enabled: !!selectedId,
     staleTime: 30_000,
-    gcTime: 10 * 60_000,
   })
 
   const openDetail = (id: string) => {
@@ -124,270 +175,362 @@ export default function LogsPage() {
     setSp(next, { replace: true })
   }
 
-  // notif error global ringan (opsional)
-  useEffect(() => {
-    if (q.isError) {
-      toast({
-        title: "Gagal memuat history",
-        description:
-          (q.error as any)?.response?.data?.detail ??
-          (q.error as any)?.message ??
-          "Unknown error",
-        variant: "destructive",
-      })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q.isError])
+  // Toast error (dihapus dari sini agar tidak spam, sudah ditangani di state error di bawah)
 
   return (
-    <section className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-tight">History</h1>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Filter className="h-4 w-4" />
-          <span>
-            {status === "ALL" ? "All" : status} • {rows.length} item
-            {rows.length !== 1 ? "s" : ""}
-          </span>
+    <section className="space-y-6 p-1">
+      {/* ====== HEADER & FILTER ====== */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        {/* Judul Halaman */}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Histori Optimasi</h1>
+          <p className="text-muted-foreground">
+            Lihat riwayat dari semua proses optimasi yang telah dijalankan.
+          </p>
+        </div>
+
+        {/* Filter Area */}
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          {/* Filter Status (UPGRADE ke shadcn Select) */}
+          <div className="space-y-1 w-full sm:w-48">
+            <Label htmlFor="filter-status" className="text-xs">Status</Label>
+            <Select
+              value={status}
+              onValueChange={(v) => setStatus(v as any)}
+            >
+              <SelectTrigger id="filter-status">
+                <SelectValue placeholder="Filter status..." />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filter From */}
+          <div className="space-y-1 w-full sm:w-auto">
+            <Label htmlFor="filter-from" className="text-xs">Dari Tanggal</Label>
+            <div className="relative">
+              <CalendarDays className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="filter-from"
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+          </div>
+
+          {/* Filter To */}
+          <div className="space-y-1 w-full sm:w-auto">
+            <Label htmlFor="filter-to" className="text-xs">Sampai Tanggal</Label>
+            <div className="relative">
+              <CalendarDays className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="filter-to"
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+          </div>
+
+          {/* Tombol Clear Filter */}
+          <div className="flex items-end">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={clearFilters}
+              title="Reset filter"
+              className="h-9 w-9"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Filter */}
-      <Card>
-        <CardHeader className="py-3">
-          <CardTitle className="text-base">Filter</CardTitle>
+      {/* ====== TABEL ====== */}
+      <Card className="overflow-hidden">
+        <CardHeader className="flex-row items-center justify-between py-4">
+          <CardTitle className="text-lg flex items-center gap-3">
+            <History className="h-5 w-5 text-primary" />
+            <span>
+              Riwayat Optimasi
+              <Badge variant="secondary" className="ml-2">
+                {rows.length} hasil
+              </Badge>
+            </span>
+          </CardTitle>
+          {q.isFetching ? (
+            <Badge variant="outline" className="gap-1.5 px-3 py-1.5">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Sinkronisasi...
+            </Badge>
+          ) : null}
         </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs mb-1 text-muted-foreground">Status</label>
-            {/* pakai native select (belum install shadcn Select) */}
-            <select
-              className="w-full h-9 rounded-md border bg-background px-3 text-sm"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as any)}
-            >
-              <option value="ALL">All</option>
-              <option value="planned">planned</option>
-              <option value="running">running</option>
-              <option value="succeeded">succeeded</option>
-              <option value="failed">failed</option>
-              <option value="cancelled">cancelled</option>
-            </select>
-          </div>
 
-          <div>
-            <label className="block text-xs mb-1 text-muted-foreground">From</label>
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          </div>
-
-          <div>
-            <label className="block text-xs mb-1 text-muted-foreground">To</label>
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-          </div>
+        <CardContent className="p-0">
+          {q.isLoading ? (
+            <div className="p-8 text-sm text-muted-foreground text-center flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Memuat data histori...
+            </div>
+          ) : q.isError ? (
+            <Alert variant="destructive" className="m-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Gagal Memuat Histori</AlertTitle>
+              <AlertDescription>
+                {(q.error as any)?.response?.data?.detail ?? (q.error as any)?.message ?? "Unknown error"}
+              </AlertDescription>
+            </Alert>
+          ) : rows.length === 0 ? (
+            <div className="p-16 text-muted-foreground text-center space-y-2">
+              <Inbox className="h-12 w-12 mx-auto" />
+              <p className="font-medium">Tidak Ada Data</p>
+              <p className="text-sm">
+                {status !== 'ALL' || fromDate || toDate
+                  ? "Tidak ada data histori yang cocok dengan filter."
+                  : "Belum ada histori optimasi yang tersimpan."
+                }
+              </p>
+            </div>
+          ) : (
+            <div className="max-w-full overflow-x-auto">
+              <Table className="min-w-[960px]">
+                <TableHeader className="sticky top-0 bg-muted/60 backdrop-blur supports-[backdrop-filter]:bg-muted/40">
+                  <TableRow>
+                    <TableHead className="w-[220px]">
+                      <div className="flex items-center gap-2"><Clock className="h-4 w-4" /> Waktu</div>
+                    </TableHead>
+                    <TableHead className="w-[140px]">
+                      <div className="flex items-center gap-2"><ListFilter className="h-4 w-4" /> Status</div>
+                    </TableHead>
+                    <TableHead className="w-[160px]">
+                      <div className="flex items-center gap-2"><Truck className="h-4 w-4" /> Kendaraan</div>
+                    </TableHead>
+                    <TableHead className="w-[160px]">
+                      <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> Titik Disiram</div>
+                    </TableHead>
+                    <TableHead className="w-[120px]">Details</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((it) => {
+                    const points =
+                      (it as any).points_count ??
+                      (it as any).served_points ??
+                      (it as any).points_total ??
+                      (it as any).node_count ??
+                      "—"
+                    return (
+                      <TableRow key={it.job_id} className="cursor-pointer" onClick={() => openDetail(it.job_id)}>
+                        <TableCell className="whitespace-nowrap font-medium">
+                          {new Date(it.created_at).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={it.status} />
+                        </TableCell>
+                        <TableCell>{it.vehicle_count}</TableCell>
+                        <TableCell>{points}</TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="sm">
+                            <Eye className="mr-2 h-4 w-4" />
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+                <TableCaption className="text-xs">
+                  {rows.length} item{rows.length !== 1 ? "s" : ""}
+                </TableCaption>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Tabel */}
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-3 border-b">
-          <span className="text-sm font-medium">Riwayat Optimasi</span>
-          {q.isFetching ? (
-            <Badge variant="secondary" className="gap-1">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Loading…
-            </Badge>
-          ) : null}
-        </div>
-
-        {q.isError ? (
-          <div className="p-4 text-sm text-destructive">
-            Gagal memuat history:{" "}
-            {(q.error as any)?.response?.data?.detail ??
-              (q.error as any)?.message ??
-              "Unknown error"}
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="p-8 text-sm text-muted-foreground text-center">Belum ada history.</div>
-        ) : (
-          <div className="max-w-full overflow-x-auto">
-            <Table className="min-w-[960px]">
-              <TableHeader className="sticky top-0 bg-muted/60 backdrop-blur supports-[backdrop-filter]:bg-muted/40">
-                <TableRow>
-                  <TableHead className="w-[220px]">Time</TableHead>
-                  <TableHead className="w-[140px]">Status</TableHead>
-                  <TableHead className="w-[160px]">Kendaraan</TableHead>
-                  <TableHead className="w-[160px]">Titik Disiram</TableHead>
-                  <TableHead className="w-[120px]">Details</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((it) => {
-                  const points =
-                    (it as any).points_count ??
-                    (it as any).served_points ??
-                    (it as any).points_total ??
-                    (it as any).node_count ??
-                    "—"
-                  return (
-                    <TableRow key={it.job_id}>
-                      <TableCell className="whitespace-nowrap">
-                        {new Date(it.created_at).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={it.status} />
-                      </TableCell>
-                      <TableCell>{it.vehicle_count}</TableCell>
-                      <TableCell>{points}</TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => openDetail(it.job_id)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-              <TableCaption className="text-xs">
-                {rows.length} item{rows.length !== 1 ? "s" : ""}
-              </TableCaption>
-            </Table>
-          </div>
-        )}
-      </Card>
-
-      {/* Dialog Detail */}
+      {/* ====== DIALOG DETAIL ====== */}
       <Dialog open={open} onOpenChange={(v) => (!v ? closeDetail() : void 0)}>
-  <DialogContent
-    // batasi lebar & tinggi, dan pastikan konten bisa scroll
-    className="w-[95vw] sm:max-w-3xl lg:max-w-4xl p-0 overflow-hidden max-h-[85vh]"
-  >
-    {/* Header sticky */}
-    <DialogHeaderUI className="sticky top-0 z-10 bg-background/95 backdrop-blur px-4 py-3 border-b">
-      <div className="flex items-center justify-between">
-        <DialogTitleUI>Job Details</DialogTitleUI>
-        <button
-          type="button"
-          className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-accent"
-          onClick={closeDetail}
-          aria-label="Close"
+        <DialogContent
+          className="w-[95vw] sm:max-w-3xl lg:max-w-4xl p-0 overflow-hidden max-h-[90vh] flex flex-col"
         >
-          ×
-        </button>
-      </div>
-    </DialogHeaderUI>
+          {/* Header Dialog */}
+          <DialogHeaderUI className="sticky top-0 z-10 bg-background/95 backdrop-blur px-6 py-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitleUI className="text-lg">Detail Job Optimasi</DialogTitleUI>
+              <DialogClose asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <X className="h-4 w-4" />
+                </Button>
+              </DialogClose>
+            </div>
+          </DialogHeaderUI>
 
-    {/* Konten scroll area */}
-    <div className="overflow-y-auto max-h-[calc(85vh-52px)] px-4 py-4">
-      {!selectedId ? (
-        <div className="text-sm text-muted-foreground">No job selected.</div>
-      ) : detailQ.isLoading ? (
-        <div className="text-sm text-muted-foreground">Loading details…</div>
-      ) : detailQ.isError ? (
-        <div className="text-sm text-destructive">
-          Gagal memuat detail:{" "}
-          {(detailQ.error as any)?.response?.data?.detail ??
-            (detailQ.error as any)?.message ??
-            "Unknown error"}
-        </div>
-      ) : detailQ.data ? (
-        <div className="pr-2"> {/* ruang kecil untuk scrollbar supaya header/tombol gak ketutup */}
-          <DetailsContent detail={detailQ.data} />
-        </div>
-      ) : null}
-    </div>
-  </DialogContent>
-</Dialog>
-
+          {/* Konten Dialog (Scrollable) */}
+          <ScrollArea className="flex-1 overflow-y-auto">
+            <div className="px-6 py-4">
+              {!selectedId ? (
+                <div className="text-sm text-muted-foreground p-4">No job selected.</div>
+              ) : detailQ.isLoading ? (
+                <div className="text-sm text-muted-foreground p-4 flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading details…
+                </div>
+              ) : detailQ.isError ? (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Gagal Memuat Detail</AlertTitle>
+                  <AlertDescription>
+                    {(detailQ.error as any)?.response?.data?.detail ??
+                      (detailQ.error as any)?.message ??
+                      "Unknown error"}
+                  </AlertDescription>
+                </Alert>
+              ) : detailQ.data ? (
+                // Gunakan TABS di sini!
+                <DetailsContent detail={detailQ.data} />
+              ) : null}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
 
+// ====== KOMPONEN BARU: DETAILS CONTENT (dengan TABS) ======
 function DetailsContent({ detail }: { detail: JobDetail }) {
   const vehicles = detail.vehicles ?? []
   const routes = detail.routes ?? []
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-4 text-sm">
-          <div>
-            <div className="text-xs text-muted-foreground">Job ID</div>
-            <div className="font-mono text-xs break-all">{detail.job_id}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">Created At</div>
-            <div>{new Date(detail.created_at).toLocaleString()}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">Status</div>
-            <div className="capitalize">{detail.status}</div>
-          </div>
-        </CardContent>
-      </Card>
+    <Tabs defaultValue="summary" className="w-full">
+      {/* Tab Triggers */}
+      <TabsList className="grid w-full grid-cols-3 mb-4">
+        <TabsTrigger value="summary">
+          <Info className="mr-2 h-4 w-4" />
+          Ringkasan
+        </TabsTrigger>
+        <TabsTrigger value="vehicles">
+          <Users className="mr-2 h-4 w-4" />
+          Kendaraan & Operator
+        </TabsTrigger>
+        <TabsTrigger value="routes">
+          <ListTree className="mr-2 h-4 w-4" />
+          Detail Rute
+        </TabsTrigger>
+      </TabsList>
 
-      {/* Kendaraan & Operator */}
-      <div className="space-y-2">
-        <div className="font-medium">Kendaraan & Operator</div>
+      {/* --- Tab 1: Ringkasan --- */}
+      <TabsContent value="summary">
+        <Card>
+          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-6 p-6 text-sm">
+            <div className="flex items-start gap-3">
+              <Hash className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <div className="text-xs text-muted-foreground">Job ID</div>
+                <div className="font-mono text-xs break-all">{detail.job_id}</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <div className="text-xs text-muted-foreground">Created At</div>
+                <div className="font-medium">{new Date(detail.created_at).toLocaleString()}</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <div className="text-xs text-muted-foreground">Status</div>
+                <StatusBadge status={detail.status} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* --- Tab 2: Kendaraan --- */}
+      <TabsContent value="vehicles" className="space-y-4">
         {vehicles.length === 0 ? (
-          <div className="text-sm text-muted-foreground">Tidak ada data kendaraan.</div>
-        ) : (
-          <div className="max-w-full overflow-x-auto -mx-1">
-            <Table className="min-w-[760px]">
-              <TableHeader className="sticky top-0 bg-muted/60 backdrop-blur supports-[backdrop-filter]:bg-muted/40">
-                <TableRow>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>Nopol</TableHead>
-                  <TableHead>Operator</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Durasi Rute</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vehicles.map((v, i) => (
-                  <TableRow key={`${v.vehicle_id}-${i}`}>
-                    <TableCell>#{v.vehicle_id}</TableCell>
-                    <TableCell>{(v as any).plate ?? "—"}</TableCell>
-                    <TableCell>{(v as any).operator?.name ?? "—"}</TableCell>
-                    <TableCell className="capitalize">{(v as any).status ?? "—"}</TableCell>
-                    <TableCell>
-                      {typeof (v as any).route_total_time_min === "number"
-                        ? `${(v as any).route_total_time_min} min (${minutesToHHMM(
-                            (v as any).route_total_time_min,
-                          )})`
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="text-sm text-muted-foreground text-center p-8">
+            Tidak ada data kendaraan.
           </div>
-        )}
-      </div>
-
-      {/* Rute */}
-      <div className="space-y-2">
-        <div className="font-medium">Rute</div>
-        {routes.length === 0 ? (
-          <div className="text-sm text-muted-foreground">Rute belum tersedia.</div>
         ) : (
-          <div className="space-y-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Daftar Kendaraan & Operator</CardTitle>
+              <CardDescription>{vehicles.length} kendaraan dialokasikan.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="max-w-full overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Vehicle</TableHead>
+                      <TableHead>Nopol</TableHead>
+                      <TableHead>Operator</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Durasi Rute</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vehicles.map((v, i) => (
+                      <TableRow key={`${v.vehicle_id}-${i}`}>
+                        <TableCell className="font-medium">#{v.vehicle_id}</TableCell>
+                        <TableCell>{(v as any).plate ?? "—"}</TableCell>
+                        <TableCell>{(v as any).operator?.name ?? "—"}</TableCell>
+                        <TableCell className="capitalize">
+                          {/* Asumsi 'status' di sini adalah status kendaraan, bukan job */}
+                          <StatusBadge status={((v as any).status ?? "unknown") as JobStatus} />
+                        </TableCell>
+                        <TableCell>
+                          {typeof (v as any).route_total_time_min === "number"
+                            ? `${(v as any).route_total_time_min} min (${minutesToHHMM(
+                                (v as any).route_total_time_min,
+                              )})`
+                            : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </TabsContent>
+
+      {/* --- Tab 3: Rute --- */}
+      <TabsContent value="routes" className="space-y-4">
+        {routes.length === 0 ? (
+          <div className="text-sm text-muted-foreground text-center p-8">Rute belum tersedia.</div>
+        ) : (
+          <div className="space-y-4">
             {routes.map((r, idx) => (
               <Card key={`${r.vehicle_id}-${idx}`}>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-base">
+                <CardHeader className="py-4">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Truck className="h-4 w-4" />
                     Vehicle #{r.vehicle_id}
                     {typeof r.total_time_min === "number" && (
-                      <span className="ml-2 text-xs text-muted-foreground font-normal">
-                        {r.total_time_min} min ({minutesToHHMM(r.total_time_min)})
+                      <span className="ml-2 text-sm text-muted-foreground font-normal">
+                        ({r.total_time_min} min / {minutesToHHMM(r.total_time_min)})
                       </span>
                     )}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="font-mono text-xs break-all">
+                <CardContent className="space-y-4">
+                  <div className="font-mono text-xs break-all p-3 bg-muted rounded-md">
                     {(r.sequence ?? []).join(" → ")}
                   </div>
 
@@ -399,35 +542,38 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
                     const steps = (v as any)?.route ?? []
                     if (!steps?.length) return null
                     return (
-                      <div className="max-w-full overflow-x-auto -mx-1">
-                        <Table className="min-w-[560px] text-xs">
-                          <TableHeader className="sticky top-0 bg-muted/60 backdrop-blur supports-[backdrop-filter]:bg-muted/40">
-                            <TableRow>
-                              <TableHead className="w-16">Idx</TableHead>
-                              <TableHead className="w-32">Node</TableHead>
-                              <TableHead className="w-28">Status</TableHead>
-                              <TableHead>Reason</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {steps
-                              .slice()
-                              .sort(
-                                (a: any, b: any) =>
-                                  (a.sequence_index ?? 0) - (b.sequence_index ?? 0),
-                              )
-                              .map((s: any) => (
-                                <TableRow key={s.sequence_index}>
-                                  <TableCell>{s.sequence_index}</TableCell>
-                                  <TableCell>{s.node_id}</TableCell>
-                                  <TableCell className="capitalize">
-                                    {s.status ?? "—"}
-                                  </TableCell>
-                                  <TableCell>{s.reason ?? "—"}</TableCell>
-                                </TableRow>
-                              ))}
-                          </TableBody>
-                        </Table>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Detail Langkah (Steps)</Label>
+                        <div className="max-w-full overflow-x-auto rounded-md border">
+                          <Table className="text-xs">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-16">Idx</TableHead>
+                                <TableHead className="w-32">Node</TableHead>
+                                <TableHead className="w-28">Status</TableHead>
+                                <TableHead>Reason</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {steps
+                                .slice()
+                                .sort(
+                                  (a: any, b: any) =>
+                                    (a.sequence_index ?? 0) - (b.sequence_index ?? 0),
+                                )
+                                .map((s: any) => (
+                                  <TableRow key={s.sequence_index}>
+                                    <TableCell>{s.sequence_index}</TableCell>
+                                    <TableCell className="font-mono">{s.node_id}</TableCell>
+                                    <TableCell className="capitalize">
+                                      <StatusBadge status={(s.status ?? "unknown") as JobStatus} />
+                                    </TableCell>
+                                    <TableCell>{s.reason ?? "—"}</TableCell>
+                                  </TableRow>
+                                ))}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
                     )
                   })()}
@@ -436,7 +582,7 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
             ))}
           </div>
         )}
-      </div>
-    </div>
+      </TabsContent>
+    </Tabs>
   )
 }

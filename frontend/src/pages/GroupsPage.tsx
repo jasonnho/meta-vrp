@@ -1,158 +1,297 @@
-import { useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
-import { Api } from "../lib/api";
-import type { Group } from "../types";
-import GroupFormModal from "../components/GroupFormModal";
-import { useAllNodes } from "../hooks/useAllNodes";
-import { useGroupsUI } from "../stores/groups";
+// src/pages/GroupsPage.tsx
+import { useEffect, useMemo, useState } from "react" // Tambahkan useState
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useSearchParams } from "react-router-dom"
+import { Api } from "../lib/api"
+import type { Group } from "../types"
+import GroupFormModal from "../components/GroupFormModal"
+import { useAllNodes } from "../hooks/useAllNodes"
+import { useGroupsUI } from "../stores/groups"
+
+// --- SHADCN UI ---
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Badge } from "@/components/ui/badge"
+
+// --- ICONS ---
+import {
+  Plus,
+  Loader2,
+  Users,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  AlertCircle,
+  Inbox,
+  Search,
+} from "lucide-react"
 
 export default function GroupsPage() {
-  const qc = useQueryClient();
-  const [sp, setSp] = useSearchParams();
-  const { modal, openNew, openEdit, close } = useGroupsUI();
+  const qc = useQueryClient()
+  const [sp, setSp] = useSearchParams()
+  const { modal, openNew, openEdit, close } = useGroupsUI()
+
+  // State baru untuk Alert Dialog
+  const [deletingGroup, setDeletingGroup] = useState<Group | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
   // ==== Data Groups ====
-  const { data: groups = [], isLoading, error, isFetching } = useQuery<Group[]>({
+  const {
+    data: groups = [],
+    isLoading,
+    error,
+    isFetching,
+  } = useQuery<Group[]>({
     queryKey: ["groups"],
     queryFn: Api.listGroups,
     staleTime: 60_000,
     gcTime: 10 * 60_000,
-  });
+  })
 
-  const { data: allNodes = [] } = useAllNodes();
+  const filteredGroups = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim()
+    if (!query) return groups // Jika tidak ada query, tampilkan semua
+
+    return groups.filter(g =>
+      g.name.toLowerCase().includes(query) ||
+      g.description?.toLowerCase().includes(query)
+    )
+  }, [groups, searchQuery])
+
+  const { data: allNodes = [] } = useAllNodes()
 
   const create = useMutation({
     mutationFn: Api.createGroup,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["groups"] }),
-  });
+  })
 
   const update = useMutation({
-    mutationFn: (p: { id: string; patch: Partial<Pick<Group, "name" | "nodeIds" | "description">> }) =>
-      Api.updateGroup(p.id, p.patch),
+    mutationFn: (p: {
+      id: string
+      patch: Partial<Pick<Group, "name" | "nodeIds" | "description">>
+    }) => Api.updateGroup(p.id, p.patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["groups"] }),
-  });
+  })
 
   const remove = useMutation({
     mutationFn: Api.deleteGroup,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["groups"] }),
-  });
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["groups"] })
+      setDeletingGroup(null) // Tutup dialog setelah berhasil
+    },
+    onError: () => {
+      // Biarkan dialog terbuka untuk menampilkan error jika perlu
+      // (atau tambahkan toast error)
+    }
+  })
 
   // ==== Sinkron modal <-> URL (?group=new | ?group=<id>) ====
   // Baca dari URL saat mount
   useEffect(() => {
-    const g = sp.get("group");
+    const g = sp.get("group")
     if (g === "new") {
-      openNew();
+      openNew()
     } else if (g) {
-      openEdit(g);
+      openEdit(g)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [])
 
   // Tulis ke URL saat modal berubah
   useEffect(() => {
-    const next = new URLSearchParams(sp);
+    const next = new URLSearchParams(sp)
     if (modal.mode === "new") {
-      next.set("group", "new");
+      next.set("group", "new")
     } else if (modal.mode === "edit") {
-      next.set("group", modal.id);
+      next.set("group", modal.id)
     } else {
-      next.delete("group");
+      next.delete("group")
     }
-    setSp(next, { replace: true });
-  }, [modal, sp, setSp]);
+    setSp(next, { replace: true })
+  }, [modal, sp, setSp])
 
   // Cari group yang sedang diedit (kalau ada)
   const editingGroup: Group | undefined = useMemo(() => {
-    if (modal.mode !== "edit") return undefined;
-    return groups.find((g) => String(g.id) === String(modal.id));
-  }, [modal, groups]);
+    if (modal.mode !== "edit") return undefined
+    return groups.find((g) => String(g.id) === String(modal.id))
+  }, [modal, groups])
 
   // ==== Render ====
-  return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Groups</h2>
-        {isFetching && <span className="text-xs opacity-70">Syncing…</span>}
-      </div>
 
-      <div className="flex gap-2">
-        <button
-          className="px-3 py-2 rounded-lg bg-zinc-900 text-white"
-          onClick={() => openNew()}
-        >
-          + New Group
-        </button>
-      </div>
+  // Helper untuk konten utama
+  const renderContent = () => {
+    if (isLoading) {
+      return <GroupsTableSkeleton />
+    }
 
-      {isLoading ? (
-        <div>Loading...</div>
-      ) : groups.length > 0 ? (
-        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-          {groups.map((g) => (
-            <li key={g.id} className="py-2 flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <div className="font-medium truncate">{g.name}</div>
-                {g.description ? (
-                  <div className="text-xs opacity-80 truncate">{g.description}</div>
-                ) : null}
-                <div className="text-xs opacity-70">{g.nodeIds?.length ?? 0} points</div>
-                <div className="text-xs opacity-50">
-                  {g.createdAt ? new Date(g.createdAt).toLocaleString() : "-"}
-                </div>
-              </div>
+    if (error) {
+      return (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Gagal Memuat Grup</AlertTitle>
+          <AlertDescription>
+            {(error as Error).message}
+          </AlertDescription>
+        </Alert>
+      )
+    }
 
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  className="px-2 py-1 rounded-md border text-xs"
-                  onClick={() => openEdit(String(g.id))}
-                >
-                  Edit
-                </button>
-                <button
-                  className="px-2 py-1 rounded-md border text-red-600 text-xs"
-                  onClick={() => {
-                    if (confirm(`Delete group "${g.name}"?`)) remove.mutate(g.id);
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="rounded-xl border border-dashed p-6 text-center">
-          {error ? (
-            <div className="text-sm text-red-500">
-              Failed to load groups: {(error as Error).message}
-            </div>
-          ) : (
-            <>
-              <div className="text-sm opacity-70 mb-3">Belum ada group.</div>
-              <div className="flex justify-center gap-2">
-                <button
-                  className="px-3 py-2 rounded-lg bg-zinc-900 text-white"
-                  onClick={() =>
-                    create.mutate({ name: `Group ${Date.now() % 1000}`, nodeIds: [], description: null })
-                  }
-                >
-                  + Quick Create
-                </button>
-                <button
-                  className="px-3 py-2 rounded-lg border"
-                  onClick={() => openNew()}
-                >
-                  + New Group (pilih titik)
-                </button>
-              </div>
-            </>
-          )}
+    if (filteredGroups.length === 0 && !isLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+            <Inbox className="h-10 w-10 text-muted-foreground" />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold">Belum Ada Grup</h3>
+          <p className="mb-4 mt-2 text-sm text-muted-foreground">
+            Buat grup baru untuk menyimpan sekumpulan titik taman.
+          </p>
+          <Button onClick={() => openNew()}>
+            <Plus className="mr-2 h-4 w-4" />
+            Buat Grup Baru
+          </Button>
         </div>
-      )}
+      )
+    }
 
-      {/* Modal (persist + URL-aware) */}
+    return (
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nama Grup</TableHead>
+              <TableHead>Deskripsi</TableHead>
+              <TableHead className="w-[120px]">Jumlah Titik</TableHead>
+              <TableHead className="w-[180px]">Dibuat Pada</TableHead>
+              <TableHead className="w-[80px] text-right">Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredGroups.map((g) => (
+              <TableRow key={g.id}>
+                <TableCell className="font-medium">{g.name}</TableCell>
+                <TableCell className="text-muted-foreground truncate max-w-xs">
+                  {g.description || "—"}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary">{g.nodeIds?.length ?? 0} titik</Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {g.createdAt ? new Date(g.createdAt).toLocaleString() : "—"}
+                </TableCell>
+                <TableCell className="text-right">
+                  {/* UPGRADE ke DropdownMenu */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => openEdit(String(g.id))}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeletingGroup(g)} // Buka AlertDialog
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Hapus
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+          <TableCaption>
+            Menampilkan {filteredGroups.length} dari total {groups.length} grup.
+          </TableCaption>
+        </Table>
+      </div>
+    )
+  }
+
+  return (
+    <section className="space-y-6 p-1">
+      {/* ====== HEADER HALAMAN ====== */}
+      {/* ====== HEADER HALAMAN ====== */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Manajemen Grup</h1>
+          <p className="text-muted-foreground">
+            Buat, edit, atau hapus grup titik taman untuk optimasi.
+          </p>
+        </div>
+
+        {/* --- MODIFIKASI DIV INI --- */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* Input Searchbar Baru */}
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Cari nama atau deskripsi..."
+              className="pl-8 w-full"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          {isFetching && !isLoading && (
+            <Badge variant="outline" className="gap-1.5 py-1.5 hidden sm:flex"> {/* Sembunyikan di mobile agar rapi */}
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Sinkronisasi...
+            </Badge>
+          )}
+          <Button onClick={() => openNew()} className="flex-shrink-0">
+            <Plus className="mr-2 h-4 w-4" />
+            Buat Grup
+          </Button>
+        </div>
+        {/* --- BATAS MODIFIKASI --- */}
+
+      </div>
+
+      {/* ====== KONTEN UTAMA (Tabel, Loading, Error, Empty) ====== */}
+      {renderContent()}
+
+      {/* ====== MODAL FORM (Logika tidak berubah) ====== */}
       {(modal.mode === "new" || modal.mode === "edit") && (
         <GroupFormModal
           open
@@ -167,19 +306,94 @@ export default function GroupsPage() {
           }
           allNodes={allNodes}
           onClose={() => {
-            close();
-            // URL akan dibersihkan oleh effect sinkron modal
+            close()
           }}
           onSubmit={(v) => {
             if (modal.mode === "new") {
-              create.mutate(v);
+              create.mutate(v)
             } else if (modal.mode === "edit") {
-              update.mutate({ id: editingGroup?.id ?? modal.id, patch: v });
+              update.mutate({ id: editingGroup?.id ?? modal.id, patch: v })
             }
-            close();
+            close()
           }}
         />
       )}
+
+      {/* ====== MODAL KONFIRMASI HAPUS (BARU) ====== */}
+      <AlertDialog
+        open={!!deletingGroup}
+        onOpenChange={(open) => !open && setDeletingGroup(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Anda yakin ingin menghapus grup ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Grup <span className="font-bold">"{deletingGroup?.name}"</span> akan
+              dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deletingGroup) remove.mutate(deletingGroup.id)
+              }}
+              disabled={remove.isPending}
+              asChild
+            >
+              <AlertDialogAction>
+                {remove.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+                Ya, Hapus
+              </AlertDialogAction>
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
-  );
+  )
+}
+
+// Komponen helper baru untuk Skeleton Loading
+function GroupsTableSkeleton() {
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nama Grup</TableHead>
+            <TableHead>Deskripsi</TableHead>
+            <TableHead className="w-[120px]">Jumlah Titik</TableHead>
+            <TableHead className="w-[180px]">Dibuat Pada</TableHead>
+            <TableHead className="w-[80px] text-right">Aksi</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {[...Array(3)].map((_, i) => (
+            <TableRow key={i}>
+              <TableCell>
+                <Skeleton className="h-5 w-32" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-48" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-16" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-32" />
+              </TableCell>
+              <TableCell className="text-right">
+                <Skeleton className="h-8 w-8 ml-auto" />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
 }

@@ -1,7 +1,7 @@
 // src/components/GroupFormModal.tsx
 import { useEffect, useMemo, useState } from "react"
 
-// shadcn ui yang sudah kamu install
+// --- SHADCN UI ---
 import {
   Dialog,
   DialogContent,
@@ -9,11 +9,22 @@ import {
   DialogTitle,
   DialogFooter,
   DialogClose,
+  DialogDescription, // Tambahkan ini
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label" // Baru
+import { Textarea } from "@/components/ui/textarea" // Baru
+import { Checkbox } from "@/components/ui/checkbox" // Baru
+import { ScrollArea } from "@/components/ui/scroll-area" // Baru
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert" // Baru
 
-// NOTE: kamu belum install Textarea/Checkbox dari shadcn, jadi pakai native <textarea> & <input type="checkbox">.
+// --- ICONS ---
+import { Users, Search, AlertTriangle, Save, Loader2 } from "lucide-react" // Tambahkan ikon
 
 type NodeLite = { id: string; name?: string; kind?: "park" | "refill" | "depot" | string }
 type Props = {
@@ -22,9 +33,18 @@ type Props = {
   allNodes: NodeLite[]
   onClose: () => void
   onSubmit: (v: { name: string; nodeIds: string[]; description?: string | null }) => void
+  // Tambahkan prop isLoading jika kamu mau (opsional)
+  // isLoading?: boolean
 }
 
-export default function GroupFormModal({ open, initial, allNodes, onClose, onSubmit }: Props) {
+export default function GroupFormModal({
+  open,
+  initial,
+  allNodes,
+  onClose,
+  onSubmit,
+  // isLoading = false // opsional
+}: Props) {
   const [name, setName] = useState(initial?.name ?? "")
   const [ids, setIds] = useState<string[]>(initial?.nodeIds ?? [])
   const [description, setDescription] = useState<string>(initial?.description ?? "")
@@ -54,7 +74,7 @@ export default function GroupFormModal({ open, initial, allNodes, onClose, onSub
     const list = q
       ? parkNodes.filter((n) => (n.name ?? n.id).toLowerCase().includes(q))
       : parkNodes
-    return list
+    return list.sort((a,b) => (a.name ?? a.id).localeCompare(b.name ?? b.id)) // Sortir
   }, [parkNodes, query])
 
   const selectAllFiltered = () =>
@@ -71,107 +91,131 @@ export default function GroupFormModal({ open, initial, allNodes, onClose, onSub
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? onClose() : void 0)}>
-      <DialogContent className="w-[95vw] sm:max-w-2xl lg:max-w-3xl p-0 overflow-hidden">
+      <DialogContent className="w-[95vw] sm:max-w-2xl lg:max-w-3xl p-0 overflow-hidden max-h-[85vh] flex flex-col">
         {/* Header */}
-        <DialogHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur px-4 py-3 border-b">
-          <DialogTitle className="text-base">
-            {initial ? "Edit Group" : "New Group"}
+        <DialogHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur px-6 py-4 border-b">
+          <DialogTitle className="text-lg flex items-center gap-3">
+            <Users className="h-5 w-5 text-primary" />
+            {initial ? "Edit Grup" : "Buat Grup Baru"}
           </DialogTitle>
-          <div className="text-xs text-muted-foreground">
-            {parkNodes.length} parks • {totalSelected} selected
-          </div>
+          <DialogDescription>
+            {parkNodes.length} total taman • {totalSelected} dipilih
+          </DialogDescription>
         </DialogHeader>
 
-        {/* Body */}
-        <div className="max-h-[75vh] overflow-y-auto px-4 py-4 space-y-4">
-          {/* Nama */}
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Group name</label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Group name"
-            />
-          </div>
+        {/* Body (Scrollable) */}
+        <ScrollArea className="flex-1 overflow-y-auto">
+          <div className="px-6 py-4 space-y-4">
+            {/* Nama */}
+            <div className="space-y-2">
+              <Label htmlFor="group-name">Nama Grup</Label>
+              <Input
+                id="group-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Contoh: Grup Taman Wilayah Timur"
+              />
+            </div>
 
-          {/* Deskripsi */}
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Description (optional)</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Description (opsional)"
-              rows={3}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            />
-          </div>
+            {/* Deskripsi */}
+            <div className="space-y-2">
+              <Label htmlFor="group-desc">Deskripsi (Opsional)</Label>
+              <Textarea
+                id="group-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Deskripsi singkat mengenai grup ini..."
+                rows={3}
+              />
+            </div>
 
-          {/* Search & actions */}
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="Cari park…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="flex-1"
-            />
-            <Button variant="secondary" onClick={selectAllFiltered}>
-              Select all (filter)
-            </Button>
-            <Button variant="ghost" onClick={clearAllFiltered}>
-              Clear (filter)
-            </Button>
-          </div>
+            {/* Garis Pemisah */}
+            <div className="border-b pt-2"></div>
 
-          {/* Daftar park */}
-          <div className="rounded-md border">
-            {parkNodes.length === 0 ? (
-              <div className="p-3 text-sm text-muted-foreground">
-                Tidak ada node bertipe <span className="font-medium">park</span>.
+            {/* Search & actions */}
+            <div className="space-y-2">
+              <Label htmlFor="search-park">Pilih Titik Taman</Label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="search-park"
+                    placeholder="Cari taman..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+                <Button variant="secondary" size="sm" onClick={selectAllFiltered}>
+                  Pilih Semua
+                </Button>
+                <Button variant="ghost" size="sm" onClick={clearAllFiltered}>
+                  Bersihkan
+                </Button>
               </div>
-            ) : (
-              <ul className="max-h-64 overflow-auto divide-y">
-                {allFiltered.map((n) => (
-                  <li key={n.id} className="flex items-center gap-3 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={ids.includes(n.id)}
-                      onChange={() => toggle(n.id)}
-                      className="h-4 w-4"
-                    />
-                    <div className="min-w-0">
-                      <div className="text-sm truncate">{n.name ?? n.id}</div>
-                      <div className="text-[11px] text-muted-foreground font-mono truncate">
-                        {n.id}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-                {allFiltered.length === 0 && (
-                  <li className="px-3 py-3 text-sm text-muted-foreground">
+            </div>
+
+            {/* Daftar park (UPGRADE ke ScrollArea + Checkbox) */}
+            <div className="rounded-md border">
+              <ScrollArea className="h-64">
+                {parkNodes.length === 0 ? (
+                  <div className="p-4 text-sm text-muted-foreground text-center">
+                    Tidak ada node bertipe "park".
+                  </div>
+                ) : allFiltered.length === 0 ? (
+                  <div className="p-4 text-sm text-muted-foreground text-center">
                     Tidak ada hasil untuk “{query}”.
-                  </li>
+                  </div>
+                ) : (
+                  <div className="p-1">
+                    {allFiltered.map((n) => (
+                      <div
+                        key={n.id}
+                        className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50"
+                      >
+                        <Checkbox
+                          id={`node-${n.id}`}
+                          checked={ids.includes(n.id)}
+                          onCheckedChange={() => toggle(n.id)}
+                        />
+                        <Label
+                          htmlFor={`node-${n.id}`}
+                          className="flex-1 min-w-0 cursor-pointer"
+                        >
+                          <div className="text-sm font-medium truncate">{n.name ?? n.id}</div>
+                          <div className="text-xs text-muted-foreground font-mono truncate">
+                            {n.id}
+                          </div>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </ul>
+              </ScrollArea>
+            </div>
+
+            {/* Info validasi (UPGRADE ke Alert) */}
+            {totalSelected !== validSelected && (
+              <Alert variant="default">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Peringatan</AlertTitle>
+                <AlertDescription>
+                  Beberapa ID yang dipilih bukan "taman" dan akan diabaikan saat menyimpan.
+                </AlertDescription>
+              </Alert>
             )}
           </div>
-
-          {/* Info validasi (guard non-park) */}
-          {totalSelected !== validSelected && (
-            <div className="text-xs text-amber-600">
-              Beberapa ID bukan park dan akan diabaikan saat menyimpan.
-            </div>
-          )}
-        </div>
+        </ScrollArea>
 
         {/* Footer */}
-        <DialogFooter className="px-4 py-3 border-t">
+        <DialogFooter className="px-6 py-4 border-t">
           <DialogClose asChild>
             <Button variant="outline" onClick={onClose}>
-              Cancel
+              Batal
             </Button>
           </DialogClose>
           <Button
-            disabled={!name.trim()}
+            disabled={!name.trim()} // tambahkan isLoading jika ada
             onClick={() =>
               onSubmit({
                 name: name.trim(),
@@ -180,7 +224,12 @@ export default function GroupFormModal({ open, initial, allNodes, onClose, onSub
               })
             }
           >
-            Save
+            {/* {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : ( */}
+              <Save className="mr-2 h-4 w-4" />
+            {/* )} */}
+            Simpan Grup
           </Button>
         </DialogFooter>
       </DialogContent>
