@@ -438,16 +438,6 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
     else:
         log.info("ALNS skipped (USE_ALNS=%s, time=%.2fs)", USE_ALNS, alns_time)
 
-    routes = ensure_groups_single_vehicle(
-        routes,
-        groups,
-        nodes_exp,
-        tm_exp,
-        depot_id,
-        vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,
-        refill_ids=refill_ids,
-    )
-
     log.info("IMPROVE start (limit=%.1fs)", improv_time)
     t_impr0 = time.perf_counter()
     routes = improve_routes(
@@ -459,6 +449,7 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         depot_id=depot_id,  # ⬅️ baru
         time_limit_sec=improv_time,
         max_no_improve=10,
+        groups=groups,
     )
     t_impr1 = time.perf_counter()
     improv_dur = t_impr1 - t_impr0
@@ -474,15 +465,6 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
     )
 
     # final safety: satukan grup + kapasitas
-    routes = ensure_groups_single_vehicle(
-        routes,
-        groups,
-        nodes_exp,
-        tm_exp,
-        depot_id,
-        vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,
-        refill_ids=refill_ids,
-    )
 
     # 8) EVALUATE (pakai nodes_exp, tm_exp)
     obj_time = makespan_minutes(routes, nodes_exp, tm_exp)

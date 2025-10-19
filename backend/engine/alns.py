@@ -432,12 +432,20 @@ def repair_greedy(routes, removed, nodes, tm, ctx, groups=None):
                 best_route = ri
                 best_pos = j
         # sisipkan semua parts ke rute best_route
+        # alns.py (KODE BARU - BENAR)
+
+        # sisipkan semua parts ke rute best_route SEBAGAI SATU BLOK
         tgt = current[best_route]
-        tgt.insert(best_pos, p0)
-        # sisipkan sisa anggota satu per satu (posisi terbaik tiap langkah)
-        for pk in parts[1:]:
-            j = best_insertion_index_for_node(tgt, pk, nodes, tm)
-            tgt.insert(j, pk)
+
+        # parts sudah di-sort oleh 'by_base', misal: ['1#1', '1#2', '1#3']
+        # 'best_pos' adalah posisi terbaik untuk '1#1'.
+        # Kita sisipkan seluruh list 'parts' di posisi 'best_pos'.
+
+        # Contoh: tgt = [0, A, B, 0], best_pos = 2
+        # Hasil: tgt = [0, A, '1#1', '1#2', '1#3', B, 0]
+        tgt[best_pos:best_pos] = parts
+
+        # HAPUS 'for pk in parts[1:]:' ... (loop itu sudah tidak ada)
 
         # kapasitas safety untuk seluruh solusi (atau minimal rute target)
         current, _ = ensure_all_routes_capacity(
@@ -520,12 +528,16 @@ def repair_regret2(
             d1, d2, target_ri, j_best = cand_per_route[0]
 
         # sisipkan p0
+        # alns.py (KODE BARU - BENAR)
+
+        # sisipkan SELURUH GRUP 'parts' di posisi 'j_best'
         tgt = current[target_ri]
-        tgt.insert(j_best, p0)
-        # sisipkan sisa anggota ke posisi terbaik bertahap
-        for pk in parts[1:]:
-            j = best_insertion_index_for_node(tgt, pk, nodes, tm)
-            tgt.insert(j, pk)
+
+        # 'j_best' adalah posisi terbaik untuk 'p0' (anchor)
+        # Kita sisipkan seluruh blok 'parts' di sana
+        tgt[j_best:j_best] = parts
+
+        # HAPUS 'for pk in parts[1:]:' ... (loop itu sudah tidak ada)
 
         # perbaiki kapasitas (auto refill)
         current, _ = ensure_all_routes_capacity(
