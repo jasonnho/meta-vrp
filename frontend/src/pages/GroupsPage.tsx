@@ -7,6 +7,7 @@ import type { Group } from "../types"
 import GroupFormModal from "../components/GroupFormModal"
 import { useAllNodes } from "../hooks/useAllNodes"
 import { useGroupsUI } from "../stores/groups"
+import { motion, AnimatePresence } from "framer-motion"
 
 // --- SHADCN UI ---
 import { Button } from "@/components/ui/button"
@@ -57,6 +58,7 @@ import {
   AlertCircle,
   Inbox,
   Search,
+  XCircle,
 } from "lucide-react"
 
 export default function GroupsPage() {
@@ -200,8 +202,19 @@ export default function GroupsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            <AnimatePresence>
             {filteredGroups.map((g) => (
-              <TableRow key={g.id}>
+              <motion.tr // <-- Ganti TableRow jadi motion.tr
+                  key={g.id}
+                  layout // <-- Agar animasi smooth saat item dihapus/filter
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  // --- TAMBAHKAN HOVER HIGHLIGHT ---
+                  className="hover:bg-muted/50 transition-colors"
+                  // ------------------------------------
+                >
                 <TableCell className="font-medium">{g.name}</TableCell>
                 <TableCell className="text-muted-foreground truncate max-w-xs">
                   {g.description || "—"}
@@ -237,8 +250,9 @@ export default function GroupsPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
-              </TableRow>
+              </motion.tr>
             ))}
+            </AnimatePresence>
           </TableBody>
           <TableCaption>
             Menampilkan {filteredGroups.length} dari total {groups.length} grup.
@@ -263,15 +277,28 @@ export default function GroupsPage() {
         {/* --- MODIFIKASI DIV INI --- */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
           {/* Input Searchbar Baru */}
+          {/* Input Searchbar Baru (dengan tombol clear) */}
           <div className="relative w-full sm:w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-3 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               type="search"
               placeholder="Cari nama atau deskripsi..."
-              className="pl-8 w-full"
+              // Beri padding kanan agar 'x' tidak nabrak teks
+              className="pl-8 pr-8 w-full"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
+            {/* Tombol Clear, muncul jika ada query */}
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1 h-7 w-7 rounded-full"
+                onClick={() => setSearchQuery("")} // <-- Aksi clear
+              >
+                <XCircle className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            )}
           </div>
           {isFetching && !isLoading && (
             <Badge variant="outline" className="gap-1.5 py-1.5 hidden sm:flex"> {/* Sembunyikan di mobile agar rapi */}
@@ -314,8 +341,13 @@ export default function GroupsPage() {
             } else if (modal.mode === "edit") {
               update.mutate({ id: editingGroup?.id ?? modal.id, patch: v })
             }
-            close()
+            // Jangan close() di sini agar user bisa lihat loading state
+            // close() akan dipanggil otomatis oleh onSuccess mutation (jika berhasil)
+            // Jika gagal, modal tetap terbuka
           }}
+          // --- TAMBAHKAN PROP INI ---
+          isLoading={create.isPending || update.isPending}
+          // --------------------------
         />
       )}
 

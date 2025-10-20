@@ -33,6 +33,7 @@ type Props = {
   allNodes: NodeLite[]
   onClose: () => void
   onSubmit: (v: { name: string; nodeIds: string[]; description?: string | null }) => void
+  isLoading?: boolean
   // Tambahkan prop isLoading jika kamu mau (opsional)
   // isLoading?: boolean
 }
@@ -43,6 +44,7 @@ export default function GroupFormModal({
   allNodes,
   onClose,
   onSubmit,
+  isLoading = false,
   // isLoading = false // opsional
 }: Props) {
   const [name, setName] = useState(initial?.name ?? "")
@@ -210,12 +212,14 @@ export default function GroupFormModal({
         {/* Footer */}
         <DialogFooter className="px-6 py-4 border-t">
           <DialogClose asChild>
-            <Button variant="outline" onClick={onClose}>
+            {/* Nonaktifkan tombol Batal saat loading agar tidak bisa ditutup */}
+            <Button variant="outline" onClick={onClose} disabled={isLoading}>
               Batal
             </Button>
           </DialogClose>
           <Button
-            disabled={!name.trim()} // tambahkan isLoading jika ada
+            // Nonaktifkan jika nama kosong ATAU sedang loading
+            disabled={!name.trim() || isLoading}
             onClick={() =>
               onSubmit({
                 name: name.trim(),
@@ -224,12 +228,14 @@ export default function GroupFormModal({
               })
             }
           >
-            {/* {isLoading ? (
+            {/* Tampilkan spinner jika isLoading */}
+            {isLoading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : ( */}
+            ) : (
               <Save className="mr-2 h-4 w-4" />
-            {/* )} */}
-            Simpan Grup
+            )}
+            {/* Ubah teks tombol saat loading */}
+            {isLoading ? "Menyimpan..." : "Simpan Grup"}
           </Button>
         </DialogFooter>
       </DialogContent>

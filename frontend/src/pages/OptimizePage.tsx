@@ -7,6 +7,7 @@ import { minutesToHHMM } from "../lib/format"
 import NodesMapSelector from "../components/NodesMapSelector"
 import { useUI } from "../stores/ui"
 import { useOptimizeMem } from "../stores/optimize"
+import { motion, AnimatePresence } from "framer-motion"
 
 // --- SHADCN UI (YANG BARU DITAMBAH) ---
 import {
@@ -357,8 +358,16 @@ export default function OptimizePage() {
               </Card>
 
               {/* Tampilkan card ringkasan HANYA jika ada data */}
+              <AnimatePresence>
               {data && (
+                <motion.div
+                    initial={{ opacity: 0, y: 15 }} // Mulai transparan & sedikit di bawah
+                    animate={{ opacity: 1, y: 0 }} // Animasikan ke visible & posisi normal
+                    exit={{ opacity: 0, y: -15 }} // Animasikan keluar saat data hilang
+                    transition={{ duration: 0.3, ease: "easeInOut" }} // Durasi & jenis animasi
+                  >
                 <Card>
+
                   <CardHeader className="py-4 flex-row items-center justify-between">
                     <CardTitle className="text-base">Ringkasan Hasil</CardTitle>
                     <Button
@@ -391,7 +400,9 @@ export default function OptimizePage() {
                     )}
                   </CardContent>
                 </Card>
+                </motion.div>
               )}
+              </AnimatePresence>
             </TabsContent>
 
             {/* --- TAB CONTENT 2: GROUPS --- */}
@@ -476,7 +487,15 @@ export default function OptimizePage() {
       </div>
 
       {/* ====== BAWAH: TABEL RUTE ====== */}
+      <AnimatePresence>
       {data?.routes?.length ? (
+        <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            // Beri sedikit delay agar muncul setelah ringkasan (opsional)
+            transition={{ duration: 0.3, ease: "easeInOut", delay: 0.1 }}
+          >
         <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-3">
@@ -523,7 +542,9 @@ export default function OptimizePage() {
             </Table>
           </div>
         </Card>
+        </motion.div>
       ) : null}
+      </AnimatePresence>
     </section>
   )
 }
