@@ -6,7 +6,7 @@ import { Api } from "../lib/api"
 import type { HistoryItem, JobDetail, JobVehicle, JobRouteStep, JobStatus } from "../types"
 import { useStatusUI } from "../stores/status"
 import StatusBadge from "../components/StatusBadge" // Kita pakai StatusBadge
-
+import { format } from "date-fns"
 // --- SHADCN UI (YANG BARU DITAMBAH) ---
 import {
   Select,
@@ -216,13 +216,17 @@ export default function StatusPage() {
               {/* Kita format SelectItem agar lebih rapi */}
               {activeJobs.map((j) => (
                 <SelectItem key={j.job_id} value={j.job_id}>
-                  <div className="flex items-center justify-between w-full">
-                    <span className="font-medium">
-                      {new Date(j.created_at).toLocaleString()}
+                  {/* Gunakan flex lagi untuk mengatur tata letak */}
+                  <div className="flex items-center justify-between w-full gap-4"> {/* Tambah gap-4 */}
+                    {/* Bagian Kiri: Tanggal */}
+                    <span className="font-medium text-sm"> {/* Kecilkan font sedikit */}
+                      {/* Format tanggal saja, tanpa jam */}
+                      {format(new Date(j.created_at), "dd MMM yyyy")}
                     </span>
-                    <div className="flex items-center gap-2">
+                    {/* Bagian Kanan: Status + Jumlah Kendaraan */}
+                    <div className="flex items-center gap-2 flex-shrink-0"> {/* Pastikan tidak wrap */}
                       <StatusBadge status={j.status} />
-                      <Badge variant="outline">{j.vehicle_count} kendaraan</Badge>
+                      <Badge variant="outline">{j.vehicle_count} kendaraan</Badge> {/* Singkat 'kendaraan' */}
                     </div>
                   </div>
                 </SelectItem>

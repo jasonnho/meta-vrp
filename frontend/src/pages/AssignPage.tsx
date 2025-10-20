@@ -6,6 +6,7 @@ import { Api } from "../lib/api"
 import type { Operator, Vehicle, HistoryItem, JobDetail, JobVehicle } from "../types"
 import { useAssignUI } from "../stores/assign"
 import StatusBadge from "../components/StatusBadge" // Import StatusBadge
+import { format } from "date-fns"
 
 // --- SHADCN UI ---
 import {
@@ -158,6 +159,13 @@ export default function AssignPage() {
 
     setSp(next, { replace: true })
   }, [selectedJobId, showAddOp, showAddVeh, sp, setSp])
+
+  const selectedJobDetailFromList = useMemo(() => {
+    if (!selectedJobId || jobs.length === 0) {
+      return null;
+    }
+    return jobs.find(job => job.job_id === selectedJobId);
+  }, [selectedJobId, jobs]);
 
   // ================== 2) Job detail (vehicles) ==================
   const {
@@ -342,18 +350,22 @@ export default function AssignPage() {
                     </div>
                   )}
                   {activeJobs.map((j) => (
-                    <SelectItem key={j.job_id} value={j.job_id}>
-                      <div className="flex items-center justify-between w-full">
-                        <span className="font-medium">
-                          {new Date(j.created_at).toLocaleString()}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <StatusBadge status={j.status} />
-                          <Badge variant="outline">{j.vehicle_count} kendaraan</Badge>
-                        </div>
+                  <SelectItem key={j.job_id} value={j.job_id}>
+                    {/* Gunakan flex lagi untuk mengatur tata letak */}
+                    <div className="flex items-center justify-between w-full gap-4"> {/* Tambah gap-4 */}
+                      {/* Bagian Kiri: Tanggal */}
+                      <span className="font-medium text-sm"> {/* Kecilkan font sedikit */}
+                        {/* Format tanggal saja, tanpa jam */}
+                        {format(new Date(j.created_at), "dd MMM yyyy")}
+                      </span>
+                      {/* Bagian Kanan: Status + Jumlah Kendaraan */}
+                      <div className="flex items-center gap-2 flex-shrink-0"> {/* Pastikan tidak wrap */}
+                        <StatusBadge status={j.status} />
+                        <Badge variant="outline">{j.vehicle_count} kendaraan</Badge> {/* Singkat 'kendaraan' */}
                       </div>
-                    </SelectItem>
-                  ))}
+                    </div>
+                  </SelectItem>
+                ))}
                 </SelectContent>
               </Select>
 
@@ -387,7 +399,14 @@ export default function AssignPage() {
           {/* ======= Daftar RV untuk di-assign ======= */}
           {selectedJobId && !loadingDetail && !jobErr && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Alokasi Kendaraan (Job #{selectedJobId.slice(0, 8)}...)</h3>
+              {/* --- 2. UPDATE JUDUL DI SINI --- */}
+            <h3 className="text-lg font-semibold">
+              Alokasi Kendaraan Job {selectedJobDetailFromList
+                ? format(new Date(selectedJobDetailFromList.created_at), "dd MMMM yyyy") // Format tanggal
+                : `(ID: ${selectedJobId.slice(0, 8)}...)` // Fallback jika job tidak ditemukan
+              }
+            </h3>
+            {/* ----------------------------- */}
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {jobVehicles.map((v) => {
                   const rvKey = String(v.vehicle_id)
