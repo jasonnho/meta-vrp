@@ -24,7 +24,7 @@ class Settings:
 
     # SA / acceptance params
     ALNS_SEED: int = 42
-    ALNS_INIT_TEMP: float = 5000.0
+    ALNS_INIT_TEMP: float = 2500.0
     ALNS_COOLING_RATE: float = 0.997
     ALNS_MIN_TEMP: float = 1e-3
 

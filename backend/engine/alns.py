@@ -154,7 +154,7 @@ def alns_optimize(
         )
 
         # Atur bobot (alpha) untuk seberapa penting keseimbangan
-        alpha = 3  # <-- Coba utak-atik nilai ini (misal 0.05, 0.1, 0.2)
+        alpha = 10  # <-- Coba utak-atik nilai ini (misal 0.05, 0.1, 0.2)
 
         # Gabungkan makespan dan penalti varians
         cost = makespan + alpha * variance
