@@ -267,27 +267,10 @@ def build_groups_from_expanded_ids(
     return groups, part_to_group
 
 
-def best_insertion_index_for_node(
-    route: List[str], nid: str, nodes: Dict[str, Node], tm: TimeMatrix
-) -> int:
-    """Cari posisi sisip terbaik (min delta travel + service) untuk node nid di route."""
-    best_j = 1
-    best_delta = float("inf")
-    for j in range(1, len(route)):
-        a, b = route[j - 1], route[j]
-        delta = (
-            tm.travel(a, nid)
-            + tm.travel(nid, b)
-            - tm.travel(a, b)
-            + nodes[nid].service_min
-        )
-        if delta < best_delta:
-            best_delta = delta
-            best_j = j
-    return best_j
+# Di utils.py (Perbaikan untuk AttributeError di line 289)
 
-
-# Di engine/utils.py
+# Fungsi ensure_all_routes_capacity dan _nearest_refill_delta tidak berubah
+# ... (kode fungsi lain) ...
 
 
 def ensure_groups_single_vehicle(
@@ -302,78 +285,147 @@ def ensure_groups_single_vehicle(
     """
     Memastikan semua anggota grup (split-node) ada di rute yang sama,
     berurutan (contiguous), dan sesuai urutan sequence (part 1, 2, 3).
-
-    Contoh: Jika ada grup '1': ['1#1', '1#2', '1#3']
-    1. Cari rute yang berisi '1#1' (ini jadi rute target).
-    2. Hapus '1#2' dan '1#3' dari rute MANAPUN mereka berada.
-    3. Sisipkan '1#2' dan '1#3' langsung setelah '1#1' di rute target.
-       Hasil: [..., '1#1', '1#2', '1#3', ...]
-    4. Panggil ensure_all_routes_capacity, yang akan menambah refill
-       jika perlu, misal: [..., '1#1', 'REFILL_A', '1#2', 'REFILL_B', '1#3', ...]
+    Versi ini memperbaiki bug duplikat visit & AttributeError.
     """
     new_routes = [r[:] for r in routes]
+    # Map untuk melacak lokasi sementara: part_id -> route_idx
+    part_location: Dict[str, int] = {}
+    for ri, r in enumerate(new_routes):
+        for node_id in r:
+            # --- PERBAIKAN ATTRIBUTE ERROR DI SINI ---
+            node_obj = nodes.get(node_id)  # Ambil objek Node dulu
+            # Cek apakah node_obj ada, punya '#' di ID, dan tipenya 'park'
+            if node_obj and "#" in node_id and node_obj.type == "park":
+                part_location[node_id] = ri
+            # --- AKHIR PERBAIKAN ---
+
+    processed_bases = set()  # Hindari proses base yang sama dua kali
 
     for base, parts in groups.items():
-        # parts sudah diurutkan oleh build_groups_from_expanded_ids
-        # misal: ['1#1', '1#2', '1#3']
-        if len(parts) <= 1:
-            continue  # Bukan grup split, abaikan
+        if len(parts) <= 1 or base in processed_bases:
+            continue
 
-        anchor_part = parts[0]  # e.g., '1#1'
-        other_parts = parts[1:]  # e.g., ['1#2', '1#3']
+        processed_bases.add(base)
+        parts_set = set(parts)  # Untuk lookup cepat
 
-        # 1. Tentukan rute target (berdasarkan 'anchor_part')
+        # 1. Tentukan rute target (berdasarkan part pertama atau part mana saja yang ditemukan)
         target_route_idx = -1
-        for ri, r in enumerate(new_routes):
-            if anchor_part in r:
-                target_route_idx = ri
-                break
+        anchor_part_for_pos = None  # Part yg akan kita cari posisinya
 
-        if target_route_idx == -1:
-            # Anchor ('1#1') tidak ditemukan di rute manapun.
-            # Ini bisa terjadi jika algoritma ALNS menghapusnya.
-            # Kita bisa coba cari rute target dari 'other_parts',
-            # tapi untuk sekarang, kita lewati saja grup ini.
+        # Cari dulu berdasarkan anchor asli (parts[0])
+        if parts[0] in part_location:
+            target_route_idx = part_location[parts[0]]
+            anchor_part_for_pos = parts[0]
+        else:
+            # Jika anchor tidak ada, cari part lain dari grup yg sama
+            found_other = False
+            for p in parts[1:]:
+                if p in part_location:
+                    target_route_idx = part_location[p]
+                    # Kita tetap butuh anchor asli untuk menentukan urutan sisip
+                    anchor_part_for_pos = parts[0]
+                    found_other = True
+                    break  # Ambil rute dari part pertama yg ditemukan
+            if not found_other:
+                continue  # Grup ini tidak ada di solusi
+
+        if target_route_idx == -1:  # Double check, seharusnya tidak terjadi
             continue
 
+        # --- LANGKAH KRUSIAL: HAPUS SEMUA PARTS DULU ---
+        anchor_original_predecessor = depot_id  # Node sebelum anchor
+        anchor_found_in_target_initially = False  # Apakah anchor awalnya di target?
+
+        # Cek dulu apakah anchor ada di target route awal
+        if anchor_part_for_pos in new_routes[target_route_idx]:
+            anchor_found_in_target_initially = True
+            try:
+                anchor_idx = new_routes[target_route_idx].index(anchor_part_for_pos)
+                if anchor_idx > 0:
+                    anchor_original_predecessor = new_routes[target_route_idx][
+                        anchor_idx - 1
+                    ]
+            except ValueError:
+                anchor_found_in_target_initially = False  # Seharusnya tidak terjadi
+
+        # Hapus SEMUA parts dari SEMUA rute
+        for ri, r in enumerate(new_routes):
+            indices_to_remove = []
+            for i in range(
+                len(r) - 1, 0, -1
+            ):  # Iterasi terbalik, jangan hapus depot[0]
+                node_id = r[i]
+                if node_id in parts_set:
+                    indices_to_remove.append(i)
+
+            # Lakukan penghapusan setelah iterasi selesai
+            if indices_to_remove:
+                indices_to_remove.sort(reverse=True)  # Hapus dari belakang
+                for idx in indices_to_remove:
+                    # Jaga-jaga index out of bounds jika ada duplikat aneh
+                    if idx < len(r):
+                        r.pop(idx)
+        # --- SELESAI MENGHAPUS ---
+
+        # 3. Tentukan posisi sisip di rute target
         target_route = new_routes[target_route_idx]
+        insert_pos = 1  # Default setelah depot
 
-        # 2. Hapus SEMUA 'other_parts' ('1#2', '1#3', ...) dari SEMUA rute
-
-        # Hapus dari rute LAIN
-        for ri, r in enumerate(new_routes):
-            if ri == target_route_idx:
-                continue  # Lewati rute target
-
-            # Iterasi terbalik supaya .pop() tidak menggeser indeks
-            for i in range(len(r) - 1, -1, -1):
-                if r[i] in other_parts:
-                    r.pop(i)
-
-        # Hapus dari rute TARGET (jika mereka ada di sana tapi terpencar)
-        for i in range(len(target_route) - 1, -1, -1):
-            if target_route[i] in other_parts:
-                target_route.pop(i)
-
-        # 3. Cari posisi 'anchor_part' ('1#1') SEKARANG
+        # Cari posisi SETELAH predecessor anchor
         try:
-            # Cari ulang posisinya, mungkin bergeser
-            anchor_pos = target_route.index(anchor_part)
+            # Cari dari awal rute (predecessor mungkin sudah berubah posisinya)
+            predecessor_pos = target_route.index(anchor_original_predecessor)
+            insert_pos = predecessor_pos + 1
         except ValueError:
-            # Seharusnya tidak terjadi, tapi jika '1#1' ikut terhapus
-            # (logika di atas seharusnya mencegah ini), kita tidak bisa lanjut.
-            continue
+            # Jika predecessor tidak ditemukan, sisipkan setelah depot
+            insert_pos = 1
 
-        # 4. Sisipkan 'other_parts' ('1#2', '1#3') BERURUTAN
-        #    langsung setelah 'anchor_part'
-        for i, part_to_insert in enumerate(other_parts):
-            # insert di anchor_pos + 1, anchor_pos + 2, ...
-            target_route.insert(anchor_pos + 1 + i, part_to_insert)
+        # Jika rute target jadi kosong (hanya [0,0]), insert_pos tetap 1
+        if len(target_route) < 2:
+            insert_pos = 1
+        # Pastikan insert_pos tidak melebihi panjang list (sebelum depot akhir)
+        insert_pos = (
+            min(insert_pos, len(target_route) - 1) if len(target_route) > 1 else 1
+        )
 
-    # 5. Panggil safety pass untuk kapasitas (auto-refill)
-    #    Ini SANGAT PENTING. Dia akan menambah refill DI ANTARA
-    #    '1#1' dan '1#2' jika memang dibutuhkan.
+        # 4. Sisipkan kembali SEMUA parts BERURUTAN di posisi yg benar
+        # parts sudah diurutkan dari groups
+        parts_to_insert = parts
+        target_route[insert_pos:insert_pos] = parts_to_insert
+
+    # 5. Safety pass kapasitas
     fixed, _ = ensure_all_routes_capacity(
         new_routes, nodes, vehicle_capacity, refill_ids, tm, depot_id
     )
     return fixed
+
+
+# Fungsi best_insertion_index_for_node tidak dipakai di logic utama ensure_groups,
+# tapi mungkin dibutuhkan oleh fungsi lain, jadi biarkan.
+# Pastikan isinya benar.
+def best_insertion_index_for_node(
+    route: List[str], nid: str, nodes: Dict[str, Node], tm: TimeMatrix
+) -> int:
+    node_to_insert = nodes.get(nid)
+    if not node_to_insert:
+        return 1  # Default jika node tidak ada
+
+    best_j = 1
+    best_delta = float("inf")
+    for j in range(1, len(route)):
+        a, b = route[j - 1], route[j]
+        # Pastikan a dan b ada di tm sebelum menghitung travel
+        if a in tm.index and b in tm.index and nid in tm.index:
+            delta = (
+                tm.travel(a, nid)
+                + tm.travel(nid, b)
+                - tm.travel(a, b)
+                + node_to_insert.service_min  # Akses langsung
+            )
+            if delta < best_delta:
+                best_delta = delta
+                best_j = j
+        else:
+            pass  # Abaikan posisi jika node tidak ada di matrix
+    # Jika tidak ada posisi valid sama sekali, default ke 1
+    return best_j if best_delta != float("inf") else 1

@@ -21,7 +21,7 @@ def improve_routes(
     depot_id: str,
     groups: Dict[str, List[str]],  # <-- TAMBAH INI
     time_limit_sec: float = 3.0,
-    max_no_improve: int = 50,
+    max_no_improve: int = 10000,
 ) -> List[List[str]]:
     start = time.time()
     best = [r[:] for r in routes]

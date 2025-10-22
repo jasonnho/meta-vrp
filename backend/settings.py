@@ -11,15 +11,15 @@ class Settings:
     DEPOT_ID: str = "0"
     VEHICLE_CAPACITY_LITERS: float = 5000.0
     ALLOW_REFILL: bool = True
-    REFILL_SERVICE_MIN: float = 15.0
+    REFILL_SERVICE_MIN: float = 12.0
 
     # === objective & penalties ===
     LAMBDA_USE_MIN: float = 45.0  # penalti aktivasi kendaraan (menit ekv.)
-    TIME_LIMIT_SEC: float = 30.0  # total waktu solver (construct+ALNS+improve)
+    TIME_LIMIT_SEC: float = 60.0  # total waktu solver (construct+ALNS+improve)
 
     # === ALNS master switch & tuning ===
     USE_ALNS: bool = True  # aktifkan / matikan ALNS
-    ALNS_TIME_FRAC: float = 0.7  # proporsi waktu total utk ALNS (sisanya improve)
+    ALNS_TIME_FRAC: float = 0.5  # proporsi waktu total utk ALNS (sisanya improve)
     ALNS_LAMBDA_CAPACITY: float = 0.0  # penalti overload kapasitas (0 = off)
 
     # SA / acceptance params
@@ -41,6 +41,8 @@ class Settings:
     ALNS_USE_CONSTRUCT_AS_REPAIR: bool = (
         False  # True = pakai greedy_construct utk repair
     )
+
+    IMPROVE_MAX_NO_IMPROVE: int = 1000
 
 
 settings = Settings()

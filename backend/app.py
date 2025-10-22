@@ -170,22 +170,35 @@ def expand_split_delivery(
     return new_nodes, tm2, expanded_selected
 
 
-# === helper: belah satu rute menjadi K rute berbasis beban ===
+# === helper: belah satu rute menjadi K rute berbasis beban === # --- helper: belah satu rute menjadi K rute berbasis beban (VERSI GROUP-AWARE - FIX Error '.get()') ---
+
+
 def split_route_into_k_by_load(
     route: List[str],
     nodes: Dict[str, Node],
-    vehicle_capacity: float,
+    vehicle_capacity: float,  # <-- Tidak dipakai di logic ini, tapi biarkan
     k: int,
     depot_id: str,
+    groups: Dict[str, List[str]],  # <-- groups data
+    part_to_group: Dict[str, str],  # <-- part mapping data
 ) -> List[List[str]]:
     if k <= 1 or len(route) <= 2:
-        return [route[:]]
+        return [route[:]]  # Tidak perlu split
 
-    parks_idx = [i for i in range(1, len(route) - 1) if nodes[route[i]].type == "park"]
+    # Cari indeks semua node park di rute
+    parks_idx = []
+    for i in range(1, len(route) - 1):
+        node = nodes.get(route[i])
+        if node and node.type == "park":
+            parks_idx.append(i)
+
     if len(parks_idx) < k - 1:
+        # Jumlah park lebih sedikit dari jumlah potongan yg dibutuhkan
         return [route[:]]
 
-    total_demand = sum(nodes[route[i]].demand_liters for i in parks_idx)
+    total_demand = sum(
+        nodes[route[i]].demand_liters for i in parks_idx if route[i] in nodes
+    )
     if total_demand <= 0:
         return [route[:]]
 
@@ -193,54 +206,124 @@ def split_route_into_k_by_load(
     cuts = []
     acc = 0.0
     next_target = target
-    for i in parks_idx:
-        acc += nodes[route[i]].demand_liters
-        if acc >= next_target - 1e-9:
-            cuts.append(i)
-            next_target += target
-        if len(cuts) >= k - 1:
-            break
 
+    # Cari titik potong yang aman (tidak memisah grup)
+    last_valid_idx_before_target = -1
+
+    for i in parks_idx:
+        current_node_id = route[i]
+        node_obj = nodes.get(current_node_id)
+        if not node_obj:
+            continue  # Skip if node data missing
+
+        # --- PENGECEKAN GROUP-AWARE ---
+        is_safe_cut_point = True
+        if i + 1 < len(route) - 1:  # Pastikan ada node setelah ini
+            next_node_id = route[i + 1]
+            # Hanya cek jika node BERIKUTNYA adalah 'park' juga
+            next_node_obj = nodes.get(next_node_id)
+            if next_node_obj and next_node_obj.type == "park":
+                current_group = part_to_group.get(current_node_id)
+                next_group = part_to_group.get(next_node_id)
+                # Potongan TIDAK aman jika node ini dan node park berikutnya
+                # berasal dari grup split yang sama
+                if current_group and next_group and current_group == next_group:
+                    is_safe_cut_point = False
+        # --- AKHIR PENGECEKAN ---
+
+        # Akumulasi demand
+        acc += node_obj.demand_liters
+
+        # Catat indeks aman terakhir SEBELUM target tercapai
+        if acc < next_target - 1e-9 and is_safe_cut_point:
+            last_valid_idx_before_target = i
+
+        # Jika target tercapai atau terlewati
+        if acc >= next_target - 1e-9:
+            cut_point_found = False
+            # Apakah titik SEKARANG (i) aman untuk dipotong?
+            if is_safe_cut_point:
+                cuts.append(i)  # Potong di sini
+                cut_point_found = True
+            # Jika tidak aman, coba potong di titik aman terakhir SEBELUM target
+            elif last_valid_idx_before_target != -1:
+                # Pastikan titik potong sebelumnya belum dipakai
+                if not cuts or cuts[-1] != last_valid_idx_before_target:
+                    cuts.append(last_valid_idx_before_target)
+                    cut_point_found = True
+            # Jika tidak ada titik aman (jarang), lewati target ini
+
+            # Hanya reset 'last_valid_idx_before_target' jika potongan ditemukan
+            if cut_point_found:
+                last_valid_idx_before_target = -1
+                # Set target berikutnya
+                next_target += target
+
+            # Berhenti jika sudah cukup potongan
+            if len(cuts) >= k - 1:
+                break
+
+    # --- Sanitasi (PERBAIKAN ERROR .get()) ---
     def sanitize(seg: List[str]) -> List[str]:
         # 1) remove consecutive duplicates
         cleaned = [seg[0]]
         for nid in seg[1:]:
             if nid != cleaned[-1]:
                 cleaned.append(nid)
-        # 2) drop refill right after depot
-        # if (
-        #     len(cleaned) >= 3
-        #     and cleaned[0] == depot_id
-        #     and nodes[cleaned[1]].type == "refill"
-        # ):
-        #     cleaned.pop(1)
-        # 3) drop refill right before depot
-        if (
-            len(cleaned) >= 3
-            and cleaned[-1] == depot_id
-            and nodes[cleaned[-2]].type == "refill"
-        ):
-            cleaned.pop(-2)
-        # 4) if no parks left, return empty (caller will filter)
-        has_park = any(nodes[n].type == "park" for n in cleaned[1:-1])
+
+        # 2) drop refill right before depot (FIXED)
+        if len(cleaned) >= 3 and cleaned[-1] == depot_id:
+            node_before_depot = nodes.get(cleaned[-2])  # Pakai .get() di DICT nodes
+            if (
+                node_before_depot and node_before_depot.type == "refill"
+            ):  # Akses .type LANGSUNG
+                cleaned.pop(-2)
+
+        # 3) if no parks left, return empty (FIXED)
+        has_park = False
+        for n_id in cleaned[1:-1]:
+            node_obj = nodes.get(n_id)  # Pakai .get() di DICT nodes
+            if node_obj and node_obj.type == "park":  # Akses .type LANGSUNG
+                has_park = True
+                break
         return cleaned if has_park and len(cleaned) > 2 else []
 
+    # --- Akhir Sanitasi ---
+
+    # --- Membuat Segmen (Tidak berubah) ---
     segments = []
     prev = 0
+    # Pastikan cuts diurutkan untuk slicing yang benar
+    cuts.sort()
     for cut in cuts:
-        seg = [depot_id] + route[prev + 1 : cut + 1] + [depot_id]
-        seg = sanitize(seg)
-        if seg:
-            segments.append(seg)
-        prev = cut
+        # Pastikan cut index valid
+        if cut < len(route) - 1 and cut > prev:  # Tambah cek cut > prev
+            seg = [depot_id] + route[prev + 1 : cut + 1] + [depot_id]
+            seg = sanitize(seg)
+            if seg:
+                segments.append(seg)
+            prev = cut
+        elif cut <= prev:
+            # Jika ada cut duplikat atau tidak berurut, skip
+            pass
+
+    # Segmen terakhir
     seg = [depot_id] + route[prev + 1 : -1] + [depot_id]
     seg = sanitize(seg)
     if seg:
         segments.append(seg)
 
-    # pad dengan rute kosong minimal kalau masih kurang (jarang kejadian)
+    # Pad jika perlu (Tidak berubah)
     while len(segments) < k:
         segments.append([depot_id, depot_id])
+
+    # Jika hasilnya > k (karena potongan yg dipaksa), gabungkan yg terakhir (Tidak berubah)
+    while len(segments) > k and len(segments) > 1:
+        last = segments.pop()
+        if len(segments[-1]) > 1 and len(last) > 2:
+            segments[-1] = segments[-1][:-1] + last[1:-1] + [depot_id]
+        elif len(last) > 2:
+            segments[-1] = last
 
     return segments
 
@@ -408,6 +491,8 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,
             k=req.num_vehicles,
             depot_id=depot_id,
+            groups=groups,  # <-- TAMBAHKAN INI
+            part_to_group=part_to_group,
         )
 
     # 7) ALNS (opsional) → lalu IMPROVE
@@ -448,12 +533,27 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         refill_ids=refill_ids,  # ⬅️ baru
         depot_id=depot_id,  # ⬅️ baru
         time_limit_sec=improv_time,
-        max_no_improve=10,
+        max_no_improve=settings.IMPROVE_MAX_NO_IMPROVE,
         groups=groups,
     )
     t_impr1 = time.perf_counter()
     improv_dur = t_impr1 - t_impr0
     log.info("IMPROVE done in %.3fs", improv_dur)
+
+    # === TAMBAHKAN KEMBALI BLOK INI ===
+    log.info("ENSURE GROUPS start")
+    t_eg0 = time.perf_counter()
+    routes = ensure_groups_single_vehicle(
+        routes,
+        groups,
+        nodes_exp,
+        tm_exp,
+        depot_id,
+        vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,
+        refill_ids=refill_ids,
+    )
+    t_eg1 = time.perf_counter()
+    log.info("ENSURE GROUPS done in %.3fs", t_eg1 - t_eg0)
 
     routes, _final_ins = ensure_all_routes_capacity(
         routes,
