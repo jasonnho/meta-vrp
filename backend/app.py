@@ -448,7 +448,7 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
 
     alns_cfg = ALNSConfig(
         time_limit_sec=alns_time,
-        seed=int(getattr(settings, "ALNS_SEED", 42)),
+        seed=int(time.time()),
         init_temperature=float(getattr(settings, "ALNS_INIT_TEMP", 1_000.0)),
         cooling_rate=float(getattr(settings, "ALNS_COOLING_RATE", 0.995)),
         min_temperature=float(getattr(settings, "ALNS_MIN_TEMP", 1e-3)),
@@ -541,7 +541,9 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
     log.info("IMPROVE done in %.3fs", improv_dur)
 
     # === TAMBAHKAN KEMBALI BLOK INI ===
+    # === TAMBAHKAN LOGGING SEBELUM & SESUDAH ===
     log.info("ENSURE GROUPS start")
+    routes_before_ensure = [r[:] for r in routes]  # Salin kondisi sebelum
     t_eg0 = time.perf_counter()
     routes = ensure_groups_single_vehicle(
         routes,
@@ -553,7 +555,18 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         refill_ids=refill_ids,
     )
     t_eg1 = time.perf_counter()
-    log.info("ENSURE GROUPS done in %.3fs", t_eg1 - t_eg0)
+    ensure_groups_dur = t_eg1 - t_eg0
+    log.info(f"ENSURE GROUPS done in {ensure_groups_dur:.3f}s")  # Gunakan f-string
+
+    # Cek apakah rute berubah
+    if routes != routes_before_ensure:
+        log.warning("!!! ENSURE GROUPS HAS MODIFIED THE ROUTES !!!")  # Pesan peringatan
+        # Opsional (jika ingin lihat detail, tapi bisa sangat panjang):
+        # log.debug(f"Routes BEFORE ensure_groups: {routes_before_ensure}")
+        # log.debug(f"Routes AFTER ensure_groups: {routes}")
+    else:
+        log.info("Ensure Groups: Routes remain unchanged.")  # Konfirmasi tidak berubah
+    # === AKHIR BLOK LOGGING ===
 
     routes, _final_ins = ensure_all_routes_capacity(
         routes,
