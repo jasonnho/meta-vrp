@@ -1,35 +1,35 @@
-Tentu, ini adalah kode Markdown lengkap berdasarkan teks yang kamu berikan. Kamu bisa salin-tempel (copy-paste) seluruh isi blok kode di bawah ini langsung ke file `README.md` kamu.
-
 ````markdown
-# Meta-VRP — Dev Quickstart
+# 🚛 Meta-VRP — Developer Quickstart Guide
 
-Repo: https://github.com/jasonnho/meta-vrp.git
+Repository: [https://github.com/jasonnho/meta-vrp.git](https://github.com/jasonnho/meta-vrp.git)
 
-Panduan ini memandu kolaborator dari **clone → setup → run**, baik dengan PostgreSQL via **Docker** maupun **native install**. Sertakan juga pengecualian `.gitignore` agar **hanya** `frontend/src/lib` yang ikut di-commit.
+Panduan ini menjelaskan langkah **lengkap dan berurutan** untuk setup project dari nol — mulai dari `git clone`, setup database PostgreSQL (via Docker / native), menjalankan backend FastAPI, frontend React-Vite, hingga konfigurasi `.gitignore` supaya `frontend/src/lib` ikut di-commit dengan aman.
 
 ---
 
-## 0) Clone Repository
+## 🧩 0. Clone Repository
 
 ```bash
-git clone [https://github.com/jasonnho/meta-vrp.git](https://github.com/jasonnho/meta-vrp.git)
+git clone https://github.com/jasonnho/meta-vrp.git
 cd meta-vrp
 ````
 
-Struktur direktori yang diharapkan:
+> Struktur direktori yang diharapkan:
+>
+> ```
+> meta-vrp/
+> ├─ backend/
+> └─ frontend/
+> ```
 
-```
-meta-vrp/
-├─ backend/
-└─ frontend/
-```
+---
 
-## 1\) Setup Database (pilih salah satu)
+## 🗃️ 1. Setup Database (pilih salah satu)
 
-### Opsi A — PostgreSQL via Docker (Direkomendasikan)
+### 🐳 Opsi A — PostgreSQL via Docker (Direkomendasikan)
 
 ```bash
-# Jalankan Postgres 16 di port 5432
+# Jalankan PostgreSQL 16 di port 5432
 docker run --name meta-vrp-pg \
   -e POSTGRES_DB=meta_vrp \
   -e POSTGRES_USER=meta \
@@ -39,7 +39,7 @@ docker run --name meta-vrp-pg \
   -d postgres:16
 ```
 
-Apply migrasi SQL (`backend/migrations/schema_additions.sql`)
+**Jalankan migrasi SQL (`backend/migrations/schema_additions.sql`)**
 
 **Cara 1 — copy file ke container lalu eksekusi**
 
@@ -52,10 +52,10 @@ docker exec -it meta-vrp-pg psql \
 # Password: dev
 ```
 
-**Cara 2 — one-off container untuk psql (tanpa copy)**
+**Cara 2 — one-off container untuk `psql` (tanpa copy)**
 
 ```bash
-# macOS/Linux:
+# macOS / Linux:
 docker run --rm -i --network host \
   -v "$(pwd)/backend/migrations:/migrations" postgres:16 \
   psql -h localhost -U meta -d meta_vrp -f /migrations/schema_additions.sql
@@ -67,70 +67,74 @@ docker run --rm -i --network host `
 # Password: dev
 ```
 
-### Opsi B — PostgreSQL Native (tanpa Docker)
+---
 
-1.  Install PostgreSQL (v14–16 OK).
-2.  Buat user & database:
-    ```sql
-    -- jalankan di psql
-    CREATE USER meta WITH PASSWORD 'dev';
-    CREATE DATABASE meta_vrp OWNER meta;
-    GRANT ALL PRIVILEGES ON DATABASE meta_vrp TO meta;
-    ```
-3.  Apply migrasi:
-    ```bash
-    psql "postgresql://meta:dev@localhost:5432/meta_vrp" -f backend/migrations/schema_additions.sql
-    ```
+### 🖥️ Opsi B — PostgreSQL Native (tanpa Docker)
 
-*Saran: Buat migrasi idempotent (pakai `IF NOT EXISTS`) agar aman jika dijalankan berulang.*
+1. Install PostgreSQL (v14–v16 OK).
+2. Buat user & database:
 
-## 2\) Backend (FastAPI)
+```sql
+CREATE USER meta WITH PASSWORD 'dev';
+CREATE DATABASE meta_vrp OWNER meta;
+GRANT ALL PRIVILEGES ON DATABASE meta_vrp TO meta;
+```
 
-### 2.1 Buat virtual env & install dependencies
+3. Jalankan migrasi:
+
+```bash
+psql "postgresql://meta:dev@localhost:5432/meta_vrp" -f backend/migrations/schema_additions.sql
+```
+
+> 💡 **Tips:** gunakan `IF NOT EXISTS` di SQL agar migrasi bisa dijalankan berulang dengan aman.
+
+---
+
+## ⚙️ 2. Setup Backend (FastAPI)
+
+### 2.1 Buat virtual environment & install dependencies
 
 ```bash
 cd backend
 
-# Python venv
+# Buat virtual environment
 python -m venv .venv
 
-# Activate venv
+# Aktifkan environment
 # Windows PowerShell:
 . .venv/Scripts/Activate.ps1
-# macOS/Linux:
+# macOS / Linux:
 # source .venv/bin/activate
 
-# Install packages
+# Install dependency
 pip install -r requirements.txt
-# (alternatif minimum)
+# atau minimal:
 # pip install fastapi uvicorn[standard] sqlalchemy psycopg[binary] python-dotenv pydantic
 ```
 
-### 2.2 Konfigurasi environment
+### 2.2 Buat file konfigurasi environment
 
-Buat file `backend/.env`:
+Buat file `.env` di folder `backend/`:
 
-```.env
-# Driver psycopg3:
+```env
 DATABASE_URL=postgresql+psycopg://meta:dev@localhost:5432/meta_vrp
 # Jika memakai psycopg2-binary:
 # DATABASE_URL=postgresql+psycopg2://meta:dev@localhost:5432/meta_vrp
 
-# Sesuaikan dengan port frontend
-CORS_ORIGINS=http://localhost:5173,[http://127.0.0.1:5173](http://127.0.0.1:5173)
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
-### 2.3 Jalankan server
+### 2.3 Jalankan backend
 
 ```bash
-# Dari folder backend, dengan venv aktif:
 uvicorn backend.app:app --reload --port 8000
-# Ganti "backend.app:app" jika entrypoint berbeda
 ```
 
-Backend siap di: `http://localhost:8000`
+Backend sekarang aktif di: [http://localhost:8000](http://localhost:8000)
 
-## 3\) Frontend (Vite + React + TypeScript)
+---
+
+## 💻 3. Setup Frontend (React + Vite + TypeScript)
 
 ### 3.1 Install dependencies
 
@@ -139,12 +143,11 @@ cd ../frontend
 npm install
 ```
 
-### 3.2 Konfigurasi environment
+### 3.2 Buat file `.env`
 
-Buat file `frontend/.env`:
+Buat file `.env` di folder `frontend/`:
 
-```.env
-# URL backend FastAPI
+```env
 VITE_API_BASE=http://localhost:8000
 ```
 
@@ -155,52 +158,23 @@ npm run dev
 # buka http://localhost:5173
 ```
 
-## 4\) Penting: Commit HANYA frontend/src/lib (bukan backend/.venv/lib)
+---
 
-Jika `.gitignore` saat ini meng-ignore semua `lib`, tambahkan pengecualian agar hanya `frontend/src/lib` yang ikut di-commit.
+## 🧠 4. Troubleshooting
 
-Tambahkan di paling bawah `.gitignore` (root repo):
+| Masalah                          | Penyebab                                           | Solusi                                                                             |
+| -------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `psql: command not found`        | Postgres CLI belum terinstal                       | Jalankan migrasi pakai Docker one-off container (lihat Opsi A Cara 2)              |
+| Backend gagal konek DB           | `DATABASE_URL` salah                               | Pastikan host `localhost` & port `5432`                                            |
+| CORS error di browser            | Origin frontend belum diizinkan                    | Tambahkan `http://localhost:5173` di `CORS_ORIGINS`                                |
+| `Cannot find module '@/lib/...'` | Folder `frontend/src/lib` hilang / belum di-commit | Pastikan sudah di-commit dan alias di `tsconfig.json` benar:                       |
+|                                  |                                                    | `json<br>{ "compilerOptions": { "baseUrl": ".", "paths": { "@/*": ["src/*"] } } }` |
 
-```.gitignore
-# Izinkan hanya lib di frontend/src
-!frontend/src/lib/
-!frontend/src/lib/**
-```
+---
 
-Lalu force-add saat pertama kali:
+## 🐋 5. (Opsional) Jalankan Semua Sekaligus via Docker Compose
 
-```bash
-git add -f frontend/src/lib
-git commit -m "chore: include frontend/src/lib in repo"
-```
-
-**Alasan:**
-
-  * `frontend/src/lib` = kode sumber (helper/api/utils) → wajib di-commit.
-  * `backend/.venv/lib` = library virtualenv → jangan di-commit (auto-generated & besar).
-
-## 5\) Troubleshooting
-
-  * **`psql: command not found`**
-    Pakai Opsi A Cara 2 (one-off Docker psql) untuk menjalankan migrasi tanpa install Postgres client.
-  * **Backend gagal konek DB**
-    Cek `DATABASE_URL` di `backend/.env`. Untuk Docker single container + port mapping, hostnya `localhost`.
-  * **CORS error di browser**
-    Pastikan `CORS_ORIGINS` di `backend/.env` memuat origin frontend (mis. `http://localhost:5173`).
-  * **Frontend error `Cannot find module '@/lib/...'`**
-    Pastikan `frontend/src/lib` ada dan ter-commit. Cek juga alias `tsconfig.json`:
-    ```json
-    {
-      "compilerOptions": {
-        "baseUrl": ".",
-        "paths": { "@/*": ["src/*"] }
-      }
-    }
-    ```
-
-## 6\) (Opsional) Jalankan Semuanya via Docker Compose
-
-Buat `docker-compose.yml` di root (kalau belum ada):
+Buat file `docker-compose.yml` di root project:
 
 ```yaml
 version: "3.9"
@@ -245,38 +219,51 @@ volumes:
   meta_vrp_pgdata:
 ```
 
-Build & Run:
+**Build & Run semua service:**
 
 ```bash
 docker compose up --build
 ```
 
-## 7\) Cheat-Sheet Perintah Cepat
+---
+
+## ⚡ 6. Cheat Sheet (Semua Perintah Cepat)
 
 ```bash
-# Clone
-git clone [https://github.com/jasonnho/meta-vrp.git](https://github.com/jasonnho/meta-vrp.git)
+# Clone repo
+git clone https://github.com/jasonnho/meta-vrp.git
 cd meta-vrp
 
-# Postgres via Docker
-docker run --name meta-vrp-pg -e POSTGRES_DB=meta_vrp -e POSTGRES_USER=meta -e POSTGRES_PASSWORD=dev -p 5432:5432 -v meta_vrp_pgdata:/var/lib/postgresql/data -d postgres:16
+# Jalankan PostgreSQL (Docker)
+docker run --name meta-vrp-pg \
+  -e POSTGRES_DB=meta_vrp \
+  -e POSTGRES_USER=meta \
+  -e POSTGRES_PASSWORD=dev \
+  -p 5432:5432 \
+  -v meta_vrp_pgdata:/var/lib/postgresql/data \
+  -d postgres:16
+
+# Apply migrasi
 docker cp backend/migrations/schema_additions.sql meta-vrp-pg:/schema_additions.sql
 docker exec -it meta-vrp-pg psql -U meta -d meta_vrp -f /schema_additions.sql
 
-# Backend
+# Backend setup
 cd backend
 python -m venv .venv
 . .venv/Scripts/Activate.ps1   # (Windows) | source .venv/bin/activate (macOS/Linux)
 pip install -r requirements.txt
-printf "DATABASE_URL=postgresql+psycopg://meta:dev@localhost:5432/meta_vrp\nCORS_ORIGINS=http://localhost:5173" > .env
+echo "DATABASE_URL=postgresql+psycopg://meta:dev@localhost:5432/meta_vrp" > .env
+echo "CORS_ORIGINS=http://localhost:5173" >> .env
 uvicorn backend.app:app --reload --port 8000
 
-# Frontend (terminal baru)
+# Frontend setup
 cd ../frontend
 npm install
-printf "VITE_API_BASE=http://localhost:8000" > .env
+echo "VITE_API_BASE=http://localhost:8000" > .env
 npm run dev
 ```
+
+---
 
 ```
 ```
