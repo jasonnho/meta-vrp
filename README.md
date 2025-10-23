@@ -1,9 +1,4 @@
-````markdown
 # 🚛 Meta-VRP — Developer Quickstart Guide
-
-Repository: [https://github.com/jasonnho/meta-vrp.git](https://github.com/jasonnho/meta-vrp.git)
-
-Panduan ini menjelaskan langkah **lengkap dan berurutan** untuk setup project dari nol — mulai dari `git clone`, setup database PostgreSQL (via Docker / native), menjalankan backend FastAPI, frontend React-Vite, hingga konfigurasi `.gitignore` supaya `frontend/src/lib` ikut di-commit dengan aman.
 
 ---
 
