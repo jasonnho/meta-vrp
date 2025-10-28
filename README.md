@@ -103,6 +103,7 @@ python -m venv .venv
 
 # Install dependency
 pip install -r requirements.txt
+pip install psycopg  # Pastikan install psycopg untuk koneksi PostgreSQL
 # atau minimal:
 # pip install fastapi uvicorn[standard] sqlalchemy psycopg[binary] python-dotenv pydantic
 ```
@@ -164,6 +165,8 @@ npm run dev
 | CORS error di browser            | Origin frontend belum diizinkan                    | Tambahkan `http://localhost:5173` di `CORS_ORIGINS`                                |
 | `Cannot find module '@/lib/...'` | Folder `frontend/src/lib` hilang / belum di-commit | Pastikan sudah di-commit dan alias di `tsconfig.json` benar:                       |
 |                                  |                                                    | `json<br>{ "compilerOptions": { "baseUrl": ".", "paths": { "@/*": ["src/*"] } } }` |
+| `ModuleNotFoundError: No module named 'backend'` | Menjalankan uvicorn dari folder yang salah | Jalankan uvicorn dari root project, bukan dari folder backend |
+| `ModuleNotFoundError: No module named 'psycopg'` | Package psycopg belum terinstall | Jalankan `pip install psycopg` di virtual environment |
 
 ---
 
