@@ -20,7 +20,7 @@ from .engine.evaluation import (
     total_time_minutes,
     route_time_minutes,
     load_profile_liters,
-    makespan_minutes,  #  baru
+    makespan_minutes,  # baru
 )
 from .engine.improve import improve_routes
 from .engine.alns import alns_optimize, ALNSConfig
@@ -34,6 +34,7 @@ from .routers import (
     routes_assign,
     routes_status,
     routes_history,
+    parks,  # TAMBAH INI
 )
 
 from uuid import uuid4
@@ -529,9 +530,9 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         routes,
         nodes_exp,
         tm_exp,
-        vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,  # ⬅️ baru
-        refill_ids=refill_ids,  # ⬅️ baru
-        depot_id=depot_id,  # ⬅️ baru
+        vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,  # baru
+        refill_ids=refill_ids,  # baru
+        depot_id=depot_id,  # baru
         time_limit_sec=improv_time,
         max_no_improve=settings.IMPROVE_MAX_NO_IMPROVE,
         groups=groups,
@@ -631,8 +632,8 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
                 "load": round(t_load - t0, 4),
                 "validate": round(t_val - t_load, 4),
                 "construct": round(t_cons - t_val, 4),
-                "alns": round(alns_dur, 4),  # ⬅️ waktu ALNS
-                "improve": round(improv_dur, 4),  # ⬅️ waktu improve real
+                "alns": round(alns_dur, 4),  # waktu ALNS
+                "improve": round(improv_dur, 4),  # waktu improve real
                 "evaluate": round(t_eval - max(t_impr1, t_cons), 4),
                 "total": round(t_eval - t0, 4),
             },
@@ -651,17 +652,20 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             "expanded": {
                 "selected_in": selected_raw,
                 "selected_expanded": selected_ids_expanded,
-                "groups_count": len(groups),  # ⬅️ optional
+                "groups_count": len(groups),  # optional
             },
         },
     )
 
 
+# === ROUTER INI DIPINDAH KE routers/parks.py ===
+# Tapi tetap include di sini:
 app.include_router(routes_groups.router)
 app.include_router(routes_catalog.router)
 app.include_router(routes_assign.router)
 app.include_router(routes_status.router)
 app.include_router(routes_history.router)
+app.include_router(parks.router)  # TAMBAH INI
 
 
 log = logging.getLogger(__name__)
@@ -754,7 +758,7 @@ def optimize(req: OptimizeRequest):
             db.commit()
         except Exception as e:
             db.rollback()
-            log.exception("❌ Error saving optimization log (job_id=%s): %s", job_id, e)
+            log.exception("Error saving optimization log (job_id=%s): %s", job_id, e)
             # biar kelihatan di response saat debug:
             raise HTTPException(
                 status_code=500, detail=f"Failed to save optimization log: {e}"

@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from uuid import uuid4
-from .database import Base
+from database import Base
 import os
 
 
@@ -114,3 +114,19 @@ class JobStepStatus(Base):
     reason: Mapped[str | None] = mapped_column(Text)
     ts = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     author: Mapped[str | None] = mapped_column(String)
+
+# ================== Parks with GeoJSON (Arsiran) ==================
+from sqlalchemy.dialects.postgresql import JSONB
+
+# backend/models.py
+from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.sql import func
+from database import Base  # Pastikan ini ada
+
+class Park(Base):
+    __tablename__ = "parks"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, default="Taman")
+    geom = Column(JSONB, nullable=False)  # GeoJSON dari ST_AsGeoJSON
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
