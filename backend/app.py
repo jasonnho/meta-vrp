@@ -682,102 +682,68 @@ def optimize(req: OptimizeRequest):
         fut = EXECUTOR.submit(_solve, req)
         result = fut.result(timeout=hard_timeout)
 
-        # pastikan dict
         if not isinstance(result, dict):
             result = result.dict()
 
         routes = result.get("routes", [])
         if not routes:
-            # kalau tak ada route, langsung return saja
             result["job_id"] = None
             return result
 
         db = SessionLocal()
-        job_id = str(uuid4())
-        try:
-            now = datetime.now(timezone.utc)
+        job_id = uuid4()           # ← UUID object
+        job_id_str = str(job_id)   # ← For response
+        now = datetime.now(timezone.utc)
 
+        try:
             for r in routes:
-                # r bisa dict atau objek
-                vehicle_id = (
-                    r["vehicle_id"]
-                    if isinstance(r, dict)
-                    else getattr(r, "vehicle_id", None)
-                )
-                total_time_min = (
-                    r["total_time_min"]
-                    if isinstance(r, dict)
-                    else getattr(r, "total_time_min", None)
-                )
-                sequence = (
-                    r.get("sequence", [])
-                    if isinstance(r, dict)
-                    else getattr(r, "sequence", [])
-                )
+                vehicle_id = r.get("vehicle_id") or getattr(r, "vehicle_id", None)
+                total_time_min = r.get("total_time_min") or getattr(r, "total_time_min", None)
+                sequence = r.get("sequence", []) or getattr(r, "sequence", [])
 
                 if vehicle_id is None:
-                    raise ValueError("vehicle_id missing in route item")
+                    continue
 
-                # simpan ringkasan kendaraan
                 db.add(
                     JobVehicleRun(
                         job_id=job_id,
                         vehicle_id=vehicle_id,
                         route_total_time_min=total_time_min,
                         status="planned",
-                        # expected_finish_local boleh None (nullable)
                     )
                 )
-
-                # flush supaya error kunci/constraint cepat ketahuan di kendaraan ini
                 db.flush()
 
-                # simpan langkah rute
                 for idx, node in enumerate(sequence):
                     db.add(
                         JobStepStatus(
                             job_id=job_id,
                             vehicle_id=vehicle_id,
                             sequence_index=idx,
-                            node_id=_to_node_id(node),  # <- ISI NODE_ID
+                            node_id=_to_node_id(node),
                             status="planned",
-                            reason=None,
-                            # ts dikasih—tapi kalau kamu sudah server_default=now(), boleh dihilangkan
                             ts=now,
                             author="system",
                         )
                     )
-
-                # flush per kendaraan (biar pinpoint error)
                 db.flush()
 
             db.commit()
         except Exception as e:
             db.rollback()
-            log.exception("❌ Error saving optimization log (job_id=%s): %s", job_id, e)
-            # biar kelihatan di response saat debug:
-            raise HTTPException(
-                status_code=500, detail=f"Failed to save optimization log: {e}"
-            )
+            log.exception("Failed to save log: %s", e)
+            raise HTTPException(status_code=500, detail=f"Failed to save log: {e}")
         finally:
             db.close()
 
-        result["job_id"] = job_id
+        result["job_id"] = job_id_str
         return result
 
     except FTimeout:
-        raise HTTPException(
-            status_code=504, detail=f"Optimization timed out after {hard_timeout:.1f}s"
-        )
-    except RuntimeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException:
-        raise
+        raise HTTPException(status_code=504, detail=f"Timed out after {hard_timeout:.1f}s")
     except Exception as e:
-        log.exception("Unhandled error in /optimize")
-        raise HTTPException(
-            status_code=500, detail=f"Internal error: {type(e).__name__}: {e}"
-        )
+        log.exception("Unhandled error")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # --- tambahkan di app.py (atau bikin router terpisah) ---

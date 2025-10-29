@@ -1,10 +1,10 @@
+# backend/schemas_estra.py
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 
 
-# ---------- Groups ----------
 class ParkGroupCreate(BaseModel):
     name: str
     description: Optional[str] = None
@@ -20,7 +20,6 @@ class ParkGroupOut(BaseModel):
     node_ids: List[str]
 
 
-# ---------- Catalog ----------
 class OperatorCreate(BaseModel):
     name: str
     phone: Optional[str] = None
@@ -49,16 +48,14 @@ class VehicleOut(BaseModel):
     created_at: datetime
 
 
-# ---------- Assign ----------
 class AssignPayload(BaseModel):
     assigned_vehicle_id: Optional[str] = None
     assigned_operator_id: Optional[str] = None
-    status: Optional[str] = None  # planned|in_progress|done|cancelled
+    status: Optional[str] = None
 
 
-# ---------- Step Status ----------
 class StepStatusUpdate(BaseModel):
-    status: str  # planned|visited|skipped|failed
+    status: str
     reason: Optional[str] = None
 
 
@@ -70,7 +67,6 @@ class StepStatusOut(BaseModel):
     author: Optional[str]
 
 
-# ---------- History ----------
 class JobListItem(BaseModel):
     job_id: str
     created_at: datetime
