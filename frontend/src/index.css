@@ -3,6 +3,7 @@
    ================================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap');
+@import 'leaflet/dist/leaflet.css';
 /* 1. Direktif WAJIB di paling atas. Tanpa ini, semua tidak akan jalan. */
 @tailwind base;
 @tailwind components;

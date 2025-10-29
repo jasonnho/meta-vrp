@@ -92,17 +92,17 @@ psql "postgresql://meta:dev@localhost:5432/meta_vrp" -f backend/migrations/schem
 ```bash
 cd backend
 
-# Buat virtual environment
+# Buat virtual environment (jika belum ada)
 python -m venv .venv
 
 # Aktifkan environment
 # Windows PowerShell:
 . .venv/Scripts/Activate.ps1
 # macOS / Linux:
-# source .venv/bin/activate
+source .venv/bin/activate
 
 # Install dependency
-pip install -r requirements.txt
+pip install -r ../requirements.txt
 pip install psycopg  # Pastikan install psycopg untuk koneksi PostgreSQL
 # atau minimal:
 # pip install fastapi uvicorn[standard] sqlalchemy psycopg[binary] python-dotenv pydantic
@@ -122,7 +122,9 @@ CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 
 ### 2.3 Jalankan backend
 
+Keluar dari folder backend terlebih dahulu
 ```bash
+cd ..
 uvicorn backend.app:app --reload --port 8000
 ```
 
@@ -132,10 +134,13 @@ Backend sekarang aktif di: [http://localhost:8000](http://localhost:8000)
 
 ## 💻 3. Setup Frontend (React + Vite + TypeScript)
 
+NOTE!
+Buka terminal baru. Jadi terminal ada yang menjalankan backend dan frontend
+
 ### 3.1 Install dependencies
 
 ```bash
-cd ../frontend
+cd frontend
 npm install
 ```
 
