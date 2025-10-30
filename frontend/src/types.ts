@@ -1,4 +1,6 @@
+import type { Geometry } from 'geojson';
 export type NodeId = string;
+
 
 export interface OptimizeRoute {
   vehicle_id: number;
@@ -71,6 +73,7 @@ export interface Node {
   lon: number;
   // samakan dengan backend:
   kind?: "depot" | "refill" | "park";
+  geometry?: Geometry | null; // <-- TAMBAHKAN FIELD INI
 }
 
 // tambahkan di bawah tipe yang lain
