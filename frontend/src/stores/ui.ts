@@ -1,41 +1,38 @@
 // src/stores/ui.ts
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { create } from "zustand"
+import { persist, createJSONStorage } from "zustand/middleware"
 
-type UIState = {
-  selected: Set<string>;
-  maxVehicles: number;
+// 1. Tambahkan state baru ke 'interface'
+interface UIState {
+  maxVehicles: number
+  setMaxVehicles: (n: number) => void
+  selected: Set<string>
+  setSelected: (s: Set<string>) => void
 
-  setSelected: (s: Set<string>) => void;
-  setMaxVehicles: (n: number) => void;
-};
+  isSidebarCollapsed: boolean
+  toggleSidebar: () => void
+}
 
-export const useUI = create<UIState>()(
-  persist(
+export const useUI = create(
+  persist<UIState>(
     (set) => ({
-      selected: new Set<string>(),
-      maxVehicles: 0,
-      setSelected: (s) => set({ selected: s }),
+      maxVehicles: 5,
       setMaxVehicles: (n) => set({ maxVehicles: n }),
+      selected: new Set<string>(),
+      setSelected: (s) => set({ selected: s }),
+
+      isSidebarCollapsed: false,
+      toggleSidebar: () =>
+        set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
     }),
     {
-      name: "meta-vrp-ui",
-      // Gunakan replacer/reviver untuk serialize Set<string>
-      storage: createJSONStorage<UIState>(() => localStorage, {
-        replacer: (_key, value) => {
-          if (value instanceof Set) {
-            return { __zSet: true, v: Array.from(value) };
-          }
-          return value;
-        },
-        reviver: (_key, value) => {
-          if (value && typeof value === "object" && (value as any).__zSet) {
-            return new Set<string>((value as any).v);
-          }
-          return value;
-        },
+      name: "meta-vrp-ui-storage",
+      storage: createJSONStorage(() => localStorage), // Ganti ke localStorage agar lebih permanen
+
+      partialize: (state) => ({
+        maxVehicles: state.maxVehicles,
+        isSidebarCollapsed: state.isSidebarCollapsed, // <-- TAMBAHKAN INI
       }),
-      version: 1,
     }
   )
-);
+)
