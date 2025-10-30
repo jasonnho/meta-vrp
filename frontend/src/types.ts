@@ -71,6 +71,13 @@ export interface Node {
   lon: number;
   // samakan dengan backend:
   kind?: "depot" | "refill" | "park";
+  demand_liters?: number;
+  service_min?: number;
+  // ADD THIS LINE:
+  geometry: {
+    type: "Point" | "LineString" | "Polygon";
+    coordinates: number[] | number[][];
+  }
 }
 
 // tambahkan di bawah tipe yang lain

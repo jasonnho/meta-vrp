@@ -1,32 +1,35 @@
 # app.py
 import math
-from typing import List, Dict, Tuple
+import time
+import logging
+from typing import List, Dict, Tuple, Optional, Literal
 
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FTimeout
+from uuid import uuid4
+from datetime import datetime, timezone
+from pydantic import BaseModel
 
-from .engine.data import Node, TimeMatrix
-from .schemas import OptimizeRequest, OptimizeResponse, RouteResult
 from .settings import settings
-from .engine.data import load_nodes_csv, load_time_matrix_csv
+from .schemas import OptimizeRequest, OptimizeResponse, RouteResult
+from .engine.data import Node, TimeMatrix, load_nodes_csv, load_time_matrix_csv
 from .engine.construct import greedy_construct
 from .engine.evaluation import (
     total_time_minutes,
     route_time_minutes,
     load_profile_liters,
     capacity_trace_and_violations,
-)
-from .engine.evaluation import (
-    total_time_minutes,
-    route_time_minutes,
-    load_profile_liters,
-    makespan_minutes,  #  baru
+    makespan_minutes,
 )
 from .engine.improve import improve_routes
 from .engine.alns import alns_optimize, ALNSConfig
-from .engine.utils import ensure_all_routes_capacity
-from .engine.utils import build_groups_from_expanded_ids
-from .engine.utils import ensure_all_routes_capacity, ensure_groups_single_vehicle
+from .engine.utils import (
+    ensure_all_routes_capacity,
+    build_groups_from_expanded_ids,
+    ensure_groups_single_vehicle,
+)
 
 from .routers import (
     routes_groups,
@@ -36,21 +39,9 @@ from .routers import (
     routes_history,
 )
 
-from uuid import uuid4
-from datetime import datetime, timezone
 from .database import SessionLocal
 from .models import JobVehicleRun, JobStepStatus
 
-
-from .engine.data import Node, TimeMatrix  # pastikan impor (local reference)
-from uuid import uuid4
-from datetime import datetime, timezone
-import logging
-
-import time
-import logging
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FTimeout
-import numpy as np
 
 app = FastAPI(
     title="Meta-VRP API",
@@ -70,7 +61,7 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("meta-vrp")
 
-# Eksekutor untuk hard-timeout endpoint & per-step
+# Executors (hard timeout for endpoint & per-step)
 EXECUTOR = ThreadPoolExecutor(max_workers=1)
 STEP_EXEC = ThreadPoolExecutor(max_workers=1)
 
@@ -85,11 +76,13 @@ def run_step(fn, timeout_sec: float, name: str):
         )
 
 
+# === HEALTH ===
 @app.get("/health")
 def health_check():
     return {"status": "ok", "message": "FastAPI backend running"}
 
 
+# === EXPAND SPLIT DELIVERY ===
 def expand_split_delivery(
     nodes: Dict[str, Node],
     tm: TimeMatrix,
@@ -97,19 +90,19 @@ def expand_split_delivery(
     vehicle_capacity: float,
 ) -> Tuple[Dict[str, Node], TimeMatrix, List[str]]:
     """
-    Pecah taman dengan demand > kapasitas menjadi beberapa node 'id#k' masing2 ≤ kapasitas.
-    - Depot/refill tidak di-split.
-    - TimeMatrix diperluas dengan menduplikasi baris/kolom berdasarkan id basis (sebelum '#').
-    - selected_ids ikut diperluas: '1' → ['1#1','1#2',...].
-    - Service time dibagi proporsional dengan liter yang dilayani per sub-node.
+    Split parks with demand > capacity into multiple 'id#k' nodes (each ≤ capacity).
+    - Depot/refill are not split.
+    - TimeMatrix expanded by duplicating rows/cols according to base id (before '#').
+    - selected_ids expanded accordingly.
+    - Service time distributed proportional to served liters per sub-node.
     """
     orig_ids: List[str] = tm.ids
-    index = tm.index  # mapping id -> posisi di matrix asli
+    index = tm.index  # id -> position in original matrix
 
     new_nodes: Dict[str, Node] = {}
     new_ids: List[str] = []
 
-    # Prehitung: node mana yang perlu split
+    # Decide which nodes to split
     split_plan: Dict[str, int] = {}
     for nid in orig_ids:
         n = nodes[nid]
@@ -117,7 +110,7 @@ def expand_split_delivery(
             k = math.ceil(n.demand_liters / vehicle_capacity)
             split_plan[nid] = k
 
-    # Bangun daftar id baru (gantikan id besar dengan clone)
+    # Build new node list (replace big-demand nodes with clones)
     for nid in orig_ids:
         n = nodes[nid]
         if nid in split_plan:
@@ -128,7 +121,7 @@ def expand_split_delivery(
                 served = min(vehicle_capacity, remaining)
                 remaining -= served
                 sub_id = f"{nid}#{i}"
-                # service time proporsional terhadap liter yang dilayani
+                # Service time proportional to liters served
                 sub_service = n.service_min * (served / total) if total > 0 else 0.0
                 new_nodes[sub_id] = Node(
                     id=sub_id,
@@ -141,12 +134,10 @@ def expand_split_delivery(
                 )
                 new_ids.append(sub_id)
         else:
-            # tidak displit → salin apa adanya
             new_nodes[nid] = n
             new_ids.append(nid)
 
-    # Bangun matrix baru dengan cara memetakan ke id basis (sebelum '#')
-    # M2[i,j] = M[ idx(base(i)), idx(base(j)) ]
+    # Expand the matrix using base ids (text before '#')
     m2 = np.zeros((len(new_ids), len(new_ids)), dtype=float)
     for i, nid_i in enumerate(new_ids):
         base_i = nid_i.split("#")[0]
@@ -158,7 +149,7 @@ def expand_split_delivery(
 
     tm2 = TimeMatrix(new_ids, m2)
 
-    # Perluas selected_ids: kalau id displit, ganti jadi daftar sub-id
+    # Expand selected ids
     expanded_selected: List[str] = []
     for sid in selected_ids:
         if sid in split_plan:
@@ -170,22 +161,20 @@ def expand_split_delivery(
     return new_nodes, tm2, expanded_selected
 
 
-# === helper: belah satu rute menjadi K rute berbasis beban === # --- helper: belah satu rute menjadi K rute berbasis beban (VERSI GROUP-AWARE - FIX Error '.get()') ---
-
-
+# === SPLIT ROUTE (group-aware) ===
 def split_route_into_k_by_load(
     route: List[str],
     nodes: Dict[str, Node],
-    vehicle_capacity: float,  # <-- Tidak dipakai di logic ini, tapi biarkan
+    vehicle_capacity: float,  # not used here, kept for signature compatibility
     k: int,
     depot_id: str,
-    groups: Dict[str, List[str]],  # <-- groups data
-    part_to_group: Dict[str, str],  # <-- part mapping data
+    groups: Dict[str, List[str]],
+    part_to_group: Dict[str, str],
 ) -> List[List[str]]:
     if k <= 1 or len(route) <= 2:
-        return [route[:]]  # Tidak perlu split
+        return [route[:]]
 
-    # Cari indeks semua node park di rute
+    # Find indices of park nodes along the route
     parks_idx = []
     for i in range(1, len(route) - 1):
         node = nodes.get(route[i])
@@ -193,7 +182,6 @@ def split_route_into_k_by_load(
             parks_idx.append(i)
 
     if len(parks_idx) < k - 1:
-        # Jumlah park lebih sedikit dari jumlah potongan yg dibutuhkan
         return [route[:]]
 
     total_demand = sum(
@@ -206,64 +194,47 @@ def split_route_into_k_by_load(
     cuts = []
     acc = 0.0
     next_target = target
-
-    # Cari titik potong yang aman (tidak memisah grup)
     last_valid_idx_before_target = -1
 
     for i in parks_idx:
         current_node_id = route[i]
         node_obj = nodes.get(current_node_id)
         if not node_obj:
-            continue  # Skip if node data missing
+            continue
 
-        # --- PENGECEKAN GROUP-AWARE ---
+        # group-aware safe cut check
         is_safe_cut_point = True
-        if i + 1 < len(route) - 1:  # Pastikan ada node setelah ini
+        if i + 1 < len(route) - 1:
             next_node_id = route[i + 1]
-            # Hanya cek jika node BERIKUTNYA adalah 'park' juga
             next_node_obj = nodes.get(next_node_id)
             if next_node_obj and next_node_obj.type == "park":
                 current_group = part_to_group.get(current_node_id)
                 next_group = part_to_group.get(next_node_id)
-                # Potongan TIDAK aman jika node ini dan node park berikutnya
-                # berasal dari grup split yang sama
                 if current_group and next_group and current_group == next_group:
                     is_safe_cut_point = False
-        # --- AKHIR PENGECEKAN ---
 
-        # Akumulasi demand
         acc += node_obj.demand_liters
 
-        # Catat indeks aman terakhir SEBELUM target tercapai
         if acc < next_target - 1e-9 and is_safe_cut_point:
             last_valid_idx_before_target = i
 
-        # Jika target tercapai atau terlewati
         if acc >= next_target - 1e-9:
             cut_point_found = False
-            # Apakah titik SEKARANG (i) aman untuk dipotong?
             if is_safe_cut_point:
-                cuts.append(i)  # Potong di sini
+                cuts.append(i)
                 cut_point_found = True
-            # Jika tidak aman, coba potong di titik aman terakhir SEBELUM target
             elif last_valid_idx_before_target != -1:
-                # Pastikan titik potong sebelumnya belum dipakai
                 if not cuts or cuts[-1] != last_valid_idx_before_target:
                     cuts.append(last_valid_idx_before_target)
                     cut_point_found = True
-            # Jika tidak ada titik aman (jarang), lewati target ini
 
-            # Hanya reset 'last_valid_idx_before_target' jika potongan ditemukan
             if cut_point_found:
                 last_valid_idx_before_target = -1
-                # Set target berikutnya
                 next_target += target
 
-            # Berhenti jika sudah cukup potongan
             if len(cuts) >= k - 1:
                 break
 
-    # --- Sanitasi (PERBAIKAN ERROR .get()) ---
     def sanitize(seg: List[str]) -> List[str]:
         # 1) remove consecutive duplicates
         cleaned = [seg[0]]
@@ -271,53 +242,38 @@ def split_route_into_k_by_load(
             if nid != cleaned[-1]:
                 cleaned.append(nid)
 
-        # 2) drop refill right before depot (FIXED)
+        # 2) drop refill right before depot
         if len(cleaned) >= 3 and cleaned[-1] == depot_id:
-            node_before_depot = nodes.get(cleaned[-2])  # Pakai .get() di DICT nodes
-            if (
-                node_before_depot and node_before_depot.type == "refill"
-            ):  # Akses .type LANGSUNG
+            node_before_depot = nodes.get(cleaned[-2])
+            if node_before_depot and node_before_depot.type == "refill":
                 cleaned.pop(-2)
 
-        # 3) if no parks left, return empty (FIXED)
-        has_park = False
-        for n_id in cleaned[1:-1]:
-            node_obj = nodes.get(n_id)  # Pakai .get() di DICT nodes
-            if node_obj and node_obj.type == "park":  # Akses .type LANGSUNG
-                has_park = True
-                break
+        # 3) ensure there is still a park
+        has_park = any(
+            (nodes.get(n_id) and nodes[n_id].type == "park") for n_id in cleaned[1:-1]
+        )
         return cleaned if has_park and len(cleaned) > 2 else []
 
-    # --- Akhir Sanitasi ---
-
-    # --- Membuat Segmen (Tidak berubah) ---
+    # Build segments
     segments = []
     prev = 0
-    # Pastikan cuts diurutkan untuk slicing yang benar
     cuts.sort()
     for cut in cuts:
-        # Pastikan cut index valid
-        if cut < len(route) - 1 and cut > prev:  # Tambah cek cut > prev
+        if cut < len(route) - 1 and cut > prev:
             seg = [depot_id] + route[prev + 1 : cut + 1] + [depot_id]
             seg = sanitize(seg)
             if seg:
                 segments.append(seg)
             prev = cut
-        elif cut <= prev:
-            # Jika ada cut duplikat atau tidak berurut, skip
-            pass
 
-    # Segmen terakhir
     seg = [depot_id] + route[prev + 1 : -1] + [depot_id]
     seg = sanitize(seg)
     if seg:
         segments.append(seg)
 
-    # Pad jika perlu (Tidak berubah)
     while len(segments) < k:
         segments.append([depot_id, depot_id])
 
-    # Jika hasilnya > k (karena potongan yg dipaksa), gabungkan yg terakhir (Tidak berubah)
     while len(segments) > k and len(segments) > 1:
         last = segments.pop()
         if len(segments[-1]) > 1 and len(last) > 2:
@@ -328,6 +284,7 @@ def split_route_into_k_by_load(
     return segments
 
 
+# === SOLVER ===
 def _solve(req: OptimizeRequest) -> OptimizeResponse:
     t0 = time.perf_counter()
 
@@ -348,7 +305,7 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
     t_load = time.perf_counter()
     log.info("LOAD done in %.3fs", t_load - t0)
 
-    # 2) VALIDASI input terhadap NODES ASLI (sebelum expand)
+    # 2) VALIDATION (against original nodes)
     if not req.selected_node_ids:
         raise HTTPException(
             status_code=400, detail="selected_node_ids tidak boleh kosong"
@@ -365,15 +322,14 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
                 status_code=400, detail=f"{nid} bukan type=park (original dataset)"
             )
 
-    # 3) EXPAND SPLIT-DELIVERY (jika demand > kapasitas)
-
+    # 3) EXPAND SPLIT-DELIVERY
     nodes_exp, tm_exp, selected_ids_expanded = expand_split_delivery(
         nodes_orig, tm_orig, selected_raw, settings.VEHICLE_CAPACITY_LITERS
     )
 
     groups, part_to_group = build_groups_from_expanded_ids(selected_ids_expanded)
 
-    # 4) VALIDASI MATRIX setelah expand (pakai tm_exp)
+    # 4) VALIDATE MATRIX after expansion
     n = len(tm_exp.ids)
     tm_shape = getattr(getattr(tm_exp, "M", None), "shape", None)
     if tm_shape != (n, n):
@@ -397,7 +353,6 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             detail=f"time_matrix contains NaN/Inf at indices (truncated) {bad[:10].tolist()}",
         )
 
-    # pastikan semua selected (yang sudah di-expand) ada di index tm_exp
     missing_in_index = [nid for nid in selected_ids_expanded if nid not in tm_exp.ids]
     if missing_in_index:
         raise HTTPException(
@@ -405,7 +360,7 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             detail=f"expanded selected ids missing in matrix index: {missing_in_index}",
         )
 
-    # 5) DEPOT & REFILL pakai nodes_exp (depot tidak di-split, jadi tetap ada)
+    # 5) DEPOT & REFILL
     if (
         settings.DEPOT_ID in nodes_exp
         and getattr(nodes_exp[settings.DEPOT_ID], "type", None) == "depot"
@@ -437,11 +392,9 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
 
     # === TIME BUDGET & ALNS CONFIG ===
     TOTAL_TL = float(getattr(settings, "TIME_LIMIT_SEC", 6.0))
-    ALNS_FRAC = float(getattr(settings, "ALNS_TIME_FRAC", 0.6))  # 60% ke ALNS
+    ALNS_FRAC = float(getattr(settings, "ALNS_TIME_FRAC", 0.6))
     USE_ALNS = bool(getattr(settings, "USE_ALNS", True))
-    LAMBDA_CAP = float(
-        getattr(settings, "ALNS_LAMBDA_CAPACITY", 0.0)
-    )  # penalti kapasitas (0=off)
+    LAMBDA_CAP = float(getattr(settings, "ALNS_LAMBDA_CAPACITY", 0.0))
 
     alns_time = max(0.0, TOTAL_TL * ALNS_FRAC)
     improv_time = max(0.1, TOTAL_TL - alns_time)
@@ -465,13 +418,13 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         ),
     )
 
-    # 6) CONSTRUCT (pakai nodes_exp, tm_exp, selected_ids_expanded)
+    # 6) CONSTRUCT
     log.info("CONSTRUCT start")
     routes = run_step(
         lambda: greedy_construct(
             nodes=nodes_exp,
             tm=tm_exp,
-            selected_parks=selected_ids_expanded,  # <— PAKAI YANG EXPANDED
+            selected_parks=selected_ids_expanded,
             depot_id=depot_id,
             num_vehicles=req.num_vehicles,
             vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,
@@ -491,11 +444,11 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,
             k=req.num_vehicles,
             depot_id=depot_id,
-            groups=groups,  # <-- TAMBAHKAN INI
+            groups=groups,
             part_to_group=part_to_group,
         )
 
-    # 7) ALNS (opsional) → lalu IMPROVE
+    # 7) ALNS (optional) → IMPROVE
     alns_dur = 0.0
     improv_dur = 0.0
 
@@ -514,7 +467,7 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
                 cfg=alns_cfg,
                 groups=groups,
             ),
-            timeout_sec=alns_cfg.time_limit_sec + 1.0,  # sedikit buffer
+            timeout_sec=alns_cfg.time_limit_sec + 1.0,
             name="alns_optimize",
         )
         t_alns1 = time.perf_counter()
@@ -529,9 +482,9 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         routes,
         nodes_exp,
         tm_exp,
-        vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,  # ⬅️ baru
-        refill_ids=refill_ids,  # ⬅️ baru
-        depot_id=depot_id,  # ⬅️ baru
+        vehicle_capacity=settings.VEHICLE_CAPACITY_LITERS,
+        refill_ids=refill_ids,
+        depot_id=depot_id,
         time_limit_sec=improv_time,
         max_no_improve=settings.IMPROVE_MAX_NO_IMPROVE,
         groups=groups,
@@ -540,10 +493,9 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
     improv_dur = t_impr1 - t_impr0
     log.info("IMPROVE done in %.3fs", improv_dur)
 
-    # === TAMBAHKAN KEMBALI BLOK INI ===
-    # === TAMBAHKAN LOGGING SEBELUM & SESUDAH ===
+    # Ensure groups & capacity (post-ops)
     log.info("ENSURE GROUPS start")
-    routes_before_ensure = [r[:] for r in routes]  # Salin kondisi sebelum
+    routes_before_ensure = [r[:] for r in routes]
     t_eg0 = time.perf_counter()
     routes = ensure_groups_single_vehicle(
         routes,
@@ -556,17 +508,12 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
     )
     t_eg1 = time.perf_counter()
     ensure_groups_dur = t_eg1 - t_eg0
-    log.info(f"ENSURE GROUPS done in {ensure_groups_dur:.3f}s")  # Gunakan f-string
+    log.info(f"ENSURE GROUPS done in {ensure_groups_dur:.3f}s")
 
-    # Cek apakah rute berubah
     if routes != routes_before_ensure:
-        log.warning("!!! ENSURE GROUPS HAS MODIFIED THE ROUTES !!!")  # Pesan peringatan
-        # Opsional (jika ingin lihat detail, tapi bisa sangat panjang):
-        # log.debug(f"Routes BEFORE ensure_groups: {routes_before_ensure}")
-        # log.debug(f"Routes AFTER ensure_groups: {routes}")
+        log.warning("!!! ENSURE GROUPS HAS MODIFIED THE ROUTES !!!")
     else:
-        log.info("Ensure Groups: Routes remain unchanged.")  # Konfirmasi tidak berubah
-    # === AKHIR BLOK LOGGING ===
+        log.info("Ensure Groups: Routes remain unchanged.")
 
     routes, _final_ins = ensure_all_routes_capacity(
         routes,
@@ -577,11 +524,9 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
         depot_id,
     )
 
-    # final safety: satukan grup + kapasitas
-
-    # 8) EVALUATE (pakai nodes_exp, tm_exp)
+    # 8) EVALUATE
     obj_time = makespan_minutes(routes, nodes_exp, tm_exp)
-    results: list[RouteResult] = []
+    results: List[RouteResult] = []
     for vid, r in enumerate(routes):
         if len(r) <= 2:
             continue
@@ -631,16 +576,17 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
                 "load": round(t_load - t0, 4),
                 "validate": round(t_val - t_load, 4),
                 "construct": round(t_cons - t_val, 4),
-                "alns": round(alns_dur, 4),  # ⬅️ waktu ALNS
-                "improve": round(improv_dur, 4),  # ⬅️ waktu improve real
+                "alns": round(alns_dur, 4),
+                "improve": round(improv_dur, 4),
                 "evaluate": round(t_eval - max(t_impr1, t_cons), 4),
                 "total": round(t_eval - t0, 4),
             },
             "expanded": {
-                "selected_in": selected_raw,  # input user
-                "selected_expanded": selected_ids_expanded,  # hasil split-delivery
+                "selected_in": selected_raw,
+                "selected_expanded": selected_ids_expanded,
+                "groups_count": len(groups),
             },
-            "alns_config": {  # bantu debug
+            "alns_config": {
                 "used": USE_ALNS,
                 "time_limit_sec": alns_cfg.time_limit_sec if USE_ALNS else 0.0,
                 "lambda_capacity": alns_cfg.lambda_capacity,
@@ -648,15 +594,11 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             },
             "refill_positions": route_refills,
             "capacity_violations": cap_diag,
-            "expanded": {
-                "selected_in": selected_raw,
-                "selected_expanded": selected_ids_expanded,
-                "groups_count": len(groups),  # ⬅️ optional
-            },
         },
     )
 
 
+# === INCLUDE ROUTERS ===
 app.include_router(routes_groups.router)
 app.include_router(routes_catalog.router)
 app.include_router(routes_assign.router)
@@ -664,13 +606,10 @@ app.include_router(routes_status.router)
 app.include_router(routes_history.router)
 
 
-log = logging.getLogger(__name__)
-
-
+# === OPTIMIZE ENDPOINT ===
 def _to_node_id(x):
-    # adapt ke format sequence kamu: string, int, dict, tuple, dsb.
+    # adapt to your sequence element format
     if isinstance(x, dict):
-        # coba beberapa kunci umum
         return x.get("node_id") or x.get("id") or x.get("node") or str(x)
     return str(x)
 
@@ -691,14 +630,16 @@ def optimize(req: OptimizeRequest):
             return result
 
         db = SessionLocal()
-        job_id = uuid4()           # ← UUID object
-        job_id_str = str(job_id)   # ← For response
+        job_id = uuid4()
+        job_id_str = str(job_id)
         now = datetime.now(timezone.utc)
 
         try:
             for r in routes:
                 vehicle_id = r.get("vehicle_id") or getattr(r, "vehicle_id", None)
-                total_time_min = r.get("total_time_min") or getattr(r, "total_time_min", None)
+                total_time_min = r.get("total_time_min") or getattr(
+                    r, "total_time_min", None
+                )
                 sequence = r.get("sequence", []) or getattr(r, "sequence", [])
 
                 if vehicle_id is None:
@@ -746,11 +687,79 @@ def optimize(req: OptimizeRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# --- tambahkan di app.py (atau bikin router terpisah) ---
-from pydantic import BaseModel
-from typing import Optional, Literal, List
+# === NEW: GEOMETRY MODELS ===
+class Geometry(BaseModel):
+    type: Literal["Point", "LineString", "Polygon"]
+    coordinates: List
 
 
+class NodeWithGeometry(BaseModel):
+    id: str
+    name: Optional[str] = None
+    lat: float
+    lon: float
+    kind: Optional[Literal["depot", "refill", "park"]] = None
+    geometry: Geometry
+
+
+# === /nodes – WITH GEOMETRY OVERRIDE FROM DB ===
+@app.get("/nodes", response_model=List[NodeWithGeometry])
+def list_nodes():
+    try:
+        nodes_dict, ids_in_order = load_nodes_csv(settings.DATA_NODES_PATH)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read nodes: {e}")
+
+    # Load geometry overrides from DB
+    sql = "SELECT node_id, geometry FROM park_group_items WHERE geometry IS NOT NULL"
+    with SessionLocal() as db:
+        try:
+            overrides = {row.node_id: row.geometry for row in db.execute(sql).fetchall()}
+        except Exception:
+            overrides = {}
+
+    out: List[NodeWithGeometry] = []
+    for nid in ids_in_order:
+        n = nodes_dict[nid]
+        geom = overrides.get(nid) or {
+            "type": "Point",
+            "coordinates": [n.lon, n.lat],  # GeoJSON: [lon, lat]
+        }
+        out.append(
+            NodeWithGeometry(
+                id=n.id,
+                name=n.name,
+                lat=n.lat,
+                lon=n.lon,
+                kind=n.type,
+                geometry=geom,
+            )
+        )
+    return out
+
+
+# === SAVE GEOMETRY (DRAW → LINE/POLYGON) ===
+@app.post("/parks/{node_id}/geometry")
+def save_park_geometry(node_id: str, geom: Geometry):
+    if geom.type not in ["LineString", "Polygon"]:
+        raise HTTPException(status_code=400, detail="Only LineString/Polygon allowed")
+
+    sql = """
+        INSERT INTO park_group_items (node_id, geometry)
+        VALUES (:node_id, :geometry::jsonb)
+        ON CONFLICT (node_id) DO UPDATE SET geometry = :geometry::jsonb
+    """
+    with SessionLocal() as db:
+        try:
+            db.execute(sql, {"node_id": node_id, "geometry": geom.dict()})
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"DB error: {e}")
+    return {"status": "saved", "node_id": node_id}
+
+
+# === OLD /nodes (backward compatibility) ===
 class NodeOut(BaseModel):
     id: str
     name: Optional[str] = None
@@ -759,8 +768,8 @@ class NodeOut(BaseModel):
     kind: Optional[Literal["depot", "refill", "park"]] = None
 
 
-@app.get("/nodes", response_model=List[NodeOut])
-def list_nodes():
+@app.get("/nodes-old", response_model=List[NodeOut])
+def list_nodes_old():
     try:
         nodes_dict, ids_in_order = load_nodes_csv(settings.DATA_NODES_PATH)
     except Exception as e:
@@ -769,7 +778,6 @@ def list_nodes():
     out: List[NodeOut] = []
     for nid in ids_in_order:
         n = nodes_dict[nid]
-        # field di Node: id, name, lat, lon, type, demand_liters, service_min
         out.append(
             NodeOut(
                 id=n.id,

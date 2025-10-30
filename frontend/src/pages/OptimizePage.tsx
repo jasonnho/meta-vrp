@@ -4,12 +4,12 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { Api } from "../lib/api"
 import type { OptimizeResponse, Node, Group } from "../types"
 import { minutesToHHMM } from "../lib/format"
-import NodesMapSelector from "../components/NodesMapSelector"
+import MapWithDraw from "@/components/MapWithDraw"               // NEW
 import { useUI } from "../stores/ui"
 import { useOptimizeMem } from "../stores/optimize"
 import { motion, AnimatePresence } from "framer-motion"
 
-// --- SHADCN UI (YANG BARU DITAMBAH) ---
+// ── SHADCN UI ───────────────────────────────────────────────────────
 import {
   Tabs,
   TabsContent,
@@ -21,11 +21,9 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert"
-
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
-// --- (YANG LAMA) ---
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,56 +39,49 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
-// --- ICONS ---
+
+// ── ICONS ───────────────────────────────────────────────────────────
 import {
   Loader2,
   Play,
   Trash2,
   ListChecks,
   Users,
-  MapPin, // baru
-  Settings, // baru
-  Search, // baru
-  CheckCircle2, // baru
-  AlertCircle, // baru
-  ListTree, // baru
-  Truck, // baru
+  MapPin,
+  Settings,
+  Search,
+  CheckCircle2,
+  AlertCircle,
+  ListTree,
+  Truck,
 } from "lucide-react"
 
 export default function OptimizePage() {
-  // data nodes & groups
-  const nodesQ = useQuery({ queryKey: ["nodes"], queryFn: Api.listNodes })
-  const groupsQ = useQuery<Group[]>({ queryKey: ["groups"], queryFn: Api.listGroups })
+  // ── DATA ───────────────────────────────────────────────────────
+  const nodesQ   = useQuery({ queryKey: ["nodes"],   queryFn: Api.listNodes })
+  const groupsQ  = useQuery<Group[]>({ queryKey: ["groups"], queryFn: Api.listGroups })
 
-  // selection titik
+  // ── UI STATE ───────────────────────────────────────────────────
   const { maxVehicles, setMaxVehicles, selected, setSelected } = useUI()
+  const { lastResult, setLastResult, clearLastResult } = useOptimizeMem()
+  const [groupQuery, setGroupQuery] = useState("")
+  const [progress, setProgress] = useState(0)
 
-  // --- 1. BUAT DERIVED STATE UNTUK NODE YANG DITAMPILKAN ---
+  // ── DERIVED NODES (only parks, hide depot) ─────────────────────
   const displayNodes = useMemo(() => {
-    if (!nodesQ.data) {
-      return [];
-    }
-    // Filter node '0' DAN hanya ambil yang jenisnya 'park'
-    return (nodesQ.data as Node[]).filter(node =>
-      node.id !== '0' && node.kind === 'park'
-    );
-  }, [nodesQ.data]); // Dependensi tetap sama
-  // --------------------------------------------------------
+    if (!nodesQ.data) return []
+    return (nodesQ.data as Node[]).filter(n => n.id !== "0" && n.kind === "park")
+  }, [nodesQ.data])
 
+  // ── SELECTION HELPERS ───────────────────────────────────────────
   const toggle = (id: string) => {
     const s = new Set(selected)
     s.has(id) ? s.delete(id) : s.add(id)
     setSelected(s)
   }
+  const selectAll = () => setSelected(new Set(displayNodes.map(n => n.id)))
+  const clearAll  = () => setSelected(new Set())
 
-  const selectAll = () => {
-    // if (!nodesQ.data) return // Kita sudah pakai displayNodes, jadi cek ini tidak perlu
-    // Gunakan displayNodes untuk memilih semua
-    setSelected(new Set(displayNodes.map((n) => n.id)));
-  }
-  const clearAll = () => setSelected(new Set())
-
-  // apply group → replace selection
   const applyGroup = (g: Group) => {
     setSelected(new Set(g.nodeIds ?? []))
     toast({
@@ -99,12 +90,10 @@ export default function OptimizePage() {
     })
   }
 
+  // ── TOAST ───────────────────────────────────────────────────────
   const { toast } = useToast()
-  const { lastResult, setLastResult, clearLastResult } = useOptimizeMem()
-  const [groupQuery, setGroupQuery] = useState("")
 
-  const [progress, setProgress] = useState(0)
-
+  // ── OPTIMISE MUTATION ───────────────────────────────────────────
   const optimize = useMutation({
     mutationFn: (payload: any) => Api.optimize(payload),
     onSuccess: (res, variables) => {
@@ -114,19 +103,14 @@ export default function OptimizePage() {
       })
       toast({
         title: "Optimisasi Selesai",
-        description: `Objective ${res.objective_time_min} menit (${minutesToHHMM(
-          res.objective_time_min,
-        )})`,
-        action: (
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
-        ),
+        description: `Objective ${res.objective_time_min} menit (${minutesToHHMM(res.objective_time_min)})`,
+        action: <CheckCircle2 className="h-5 w-5 text-green-500" />,
       })
     },
     onError: (err: any) => {
       toast({
         title: "Gagal menjalankan optimisasi",
-        description:
-          err?.response?.data?.detail ?? err?.message ?? "Terjadi kesalahan tak terduga.",
+        description: err?.response?.data?.detail ?? err?.message ?? "Terjadi kesalahan tak terduga.",
         variant: "destructive",
       })
     },
@@ -142,65 +126,48 @@ export default function OptimizePage() {
 
   const data: OptimizeResponse | undefined = optimize.data ?? lastResult
 
-  // ringkasan
+  // ── SUMMARY ─────────────────────────────────────────────────────
   const summary = useMemo(() => {
     if (!data) return null
     const totRoute = data.routes.length
-    const totSeq = data.routes.reduce((s, r) => s + r.sequence.length, 0)
+    const totSeq   = data.routes.reduce((s, r) => s + r.sequence.length, 0)
     return { totRoute, totSeq }
   }, [data])
 
   const canRun = !optimize.isPending && maxVehicles > 0 && selected.size > 0
 
-  // Filter groups
+  // ── FILTERED GROROUPS ───────────────────────────────────────────
   const filteredGroups = useMemo(() => {
     if (!groupsQ.data) return []
-    return groupsQ.data.filter((g) =>
-      groupQuery.trim()
-        ? g.name.toLowerCase().includes(groupQuery.toLowerCase())
-        : true,
+    return groupsQ.data.filter(g =>
+      groupQuery.trim() ? g.name.toLowerCase().includes(groupQuery.toLowerCase()) : true
     )
   }, [groupsQ.data, groupQuery])
 
+  // ── PROGRESS BAR (30 s fake) ───────────────────────────────────
   useEffect(() => {
-    let timer: NodeJS.Timeout | undefined;
-
+    let timer: NodeJS.Timeout | undefined
     if (optimize.isPending) {
-      setProgress(0); // Selalu reset saat mutasi baru dimulai
-
-      const interval = 300; // Update setiap 300ms
-      const totalDuration = 30 * 1000; // 30 detik
-      // Hitung berapa persen kenaikan setiap interval
-      const increment = (interval / totalDuration) * 100; // = 1%
+      setProgress(0)
+      const interval = 300
+      const total    = 30_000
+      const inc      = (interval / total) * 100
 
       timer = setInterval(() => {
-        setProgress((prev) => {
-          const newProgress = prev + increment;
-          if (newProgress >= 100) {
-            clearInterval(timer);
-            return 100; // Selesai
-          }
-          return newProgress;
-        });
-      }, interval);
+        setProgress(p => {
+          const next = p + inc
+          if (next >= 100) { clearInterval(timer); return 100 }
+          return next
+        })
+      }, interval)
     }
+    return () => { clearInterval(timer); if (!optimize.isPending) setProgress(0) }
+  }, [optimize.isPending])
 
-    // Cleanup function (dijalankan saat unmount atau saat isPending berubah)
-    return () => {
-      clearInterval(timer);
-      // Saat mutasi selesai (onSuccess/onError), isPending jadi false,
-      // hook ini akan re-run. Cleanup dari run sebelumnya dipanggil.
-      // Kita reset progress di sini jika sudah tidak pending.
-      if (!optimize.isPending) {
-        setProgress(0);
-      }
-    };
-  }, [optimize.isPending]); // Hanya bergantung pada status isPending
-  // --------------------------------------------------
-
+  // ── RENDER ───────────────────────────────────────────────────────
   return (
-    <section className="space-y-6 p-1"> {/* Tambah padding sedikit */}
-      {/* ====== HEADER HALAMAN ====== */}
+    <section className="space-y-6 p-1">
+      {/* ── HEADER ── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Optimasi Rute</h1>
@@ -218,16 +185,14 @@ export default function OptimizePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* ====== KIRI: MAP ====== */}
-        {/* Kita buat perbandingan 7:5 agar map lebih besar sedikit */}
+        {/* ── LEFT: MAP ── */}
         <div className="lg:col-span-7">
-          <Card className="h-full min-h-[600px] flex flex-col"> {/* Pastikan card mengisi tinggi */}
+          <Card className="h-full min-h-[600px] flex flex-col">
             <CardHeader className="flex-row items-center justify-between">
               <div className="flex items-center gap-3">
                 <MapPin className="h-5 w-5 text-primary" />
                 <CardTitle className="text-lg">Peta Titik Taman</CardTitle>
               </div>
-              {/* Tombol select/clear kita pindah ke sini agar dekat Peta */}
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={selectAll}>
                   Pilih Semua
@@ -237,30 +202,28 @@ export default function OptimizePage() {
                 </Button>
               </div>
             </CardHeader>
+
             <CardContent className="flex-1 pt-0 flex flex-col">
               {nodesQ.isLoading && (
                 <Alert className="mt-4">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <AlertTitle>Memuat Data Peta</AlertTitle>
-                  <AlertDescription>
-                    Sedang mengambil data titik taman...
-                  </AlertDescription>
+                  <AlertDescription>Sedang mengambil data titik taman...</AlertDescription>
                 </Alert>
               )}
               {nodesQ.isError && (
                 <Alert variant="destructive" className="mt-4">
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Gagal Memuat</AlertTitle>
-                  <AlertDescription>
-                    Tidak dapat mengambil data titik. Coba refresh halaman.
-                  </AlertDescription>
+                  <AlertDescription>Tidak dapat mengambil data titik. Coba refresh halaman.</AlertDescription>
                 </Alert>
               )}
+
+              {/* ── NEW MAP WITH DRAW ── */}
               {nodesQ.data && (
-                // Wrapper ini penting agar map bisa mengisi sisa space
                 <div className="flex-1 rounded-lg border overflow-hidden">
-                  <NodesMapSelector
-                    nodes={nodesQ.data as Node[]}
+                  <MapWithDraw
+                    nodes={displayNodes}
                     selected={selected}
                     onToggle={toggle}
                   />
@@ -270,9 +233,8 @@ export default function OptimizePage() {
           </Card>
         </div>
 
-        {/* ====== KANAN: KONTROL (TABS) ====== */}
+        {/* ── RIGHT: CONTROLS ── */}
         <div className="lg:col-span-5">
-          {/* Ini adalah perubahan terbesar: mengganti 3 Card dengan 1 Tabs */}
           <Tabs defaultValue="settings" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="settings">
@@ -285,14 +247,13 @@ export default function OptimizePage() {
               </TabsTrigger>
             </TabsList>
 
-            {/* --- TAB CONTENT 1: PENGATURAN & HASIL --- */}
+            {/* ── SETTINGS TAB ── */}
             <TabsContent value="settings" className="space-y-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Parameter Optimasi</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Input Max Vehicles */}
                   <div className="space-y-2">
                     <Label htmlFor="max-vehicles">Jumlah Mobil (Max Vehicles)</Label>
                     <Input
@@ -300,7 +261,7 @@ export default function OptimizePage() {
                       type="number"
                       min={1}
                       value={maxVehicles}
-                      onChange={(e) => setMaxVehicles(Math.max(1, Number(e.target.value)))}
+                      onChange={e => setMaxVehicles(Math.max(1, Number(e.target.value)))}
                       className="text-base font-medium"
                     />
                     <p className="text-xs text-muted-foreground">
@@ -310,11 +271,9 @@ export default function OptimizePage() {
 
                   <Separator />
 
-                  {/* Tombol Run */}
                   <Button
                     size="lg"
                     className="w-full"
-                    // Tombol non-aktif jika tidak bisa run ATAU jika sedang berjalan
                     disabled={!canRun || optimize.isPending}
                     onClick={handleRun}
                   >
@@ -331,7 +290,6 @@ export default function OptimizePage() {
                     )}
                   </Button>
 
-                  {/* --- TAMBAHKAN BLOK INI (Progress Bar) --- */}
                   {optimize.isPending && (
                     <div className="space-y-2 pt-2 text-center">
                       <Progress value={progress} className="w-full" />
@@ -340,9 +298,7 @@ export default function OptimizePage() {
                       </p>
                     </div>
                   )}
-                  {/* --- BATAS BLOK TAMBAHAN --- */}
 
-                  {/* Pesan Error jika gagal run */}
                   {optimize.isError && (
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
@@ -357,55 +313,54 @@ export default function OptimizePage() {
                 </CardContent>
               </Card>
 
-              {/* Tampilkan card ringkasan HANYA jika ada data */}
+              {/* ── RESULT SUMMARY ── */}
               <AnimatePresence>
-              {data && (
-                <motion.div
-                    initial={{ opacity: 0, y: 15 }} // Mulai transparan & sedikit di bawah
-                    animate={{ opacity: 1, y: 0 }} // Animasikan ke visible & posisi normal
-                    exit={{ opacity: 0, y: -15 }} // Animasikan keluar saat data hilang
-                    transition={{ duration: 0.3, ease: "easeInOut" }} // Durasi & jenis animasi
+                {data && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -15 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
-                <Card>
+                    <Card>
+                      <CardHeader className="py-4 flex-row items-center justify-between">
+                        <CardTitle className="text-base">Ringkasan Hasil</CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={clearLastResult}
+                          title="Hapus hasil optimasi terakhir"
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Bersihkan Hasil
+                        </Button>
+                      </CardHeader>
 
-                  <CardHeader className="py-4 flex-row items-center justify-between">
-                    <CardTitle className="text-base">Ringkasan Hasil</CardTitle>
-                    <Button
-                      variant="ghost" // Ganti jadi ghost
-                      size="sm"
-                      onClick={clearLastResult}
-                      title="Hapus hasil optimasi terakhir"
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Bersihkan Hasil
-                    </Button>
-                  </CardHeader>
-
-                  <CardContent className="text-sm space-y-3">
-                    <div className="flex justify-between items-center p-3 bg-muted/50 rounded-md">
-                      <span className="text-muted-foreground">Total Waktu (Objective)</span>
-                      <b className="text-lg text-primary">
-                        {data.objective_time_min} min ({minutesToHHMM(data.objective_time_min)})
-                      </b>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Mobil Terpakai</span>
-                      <b>{data.vehicle_used} / {lastResult?.params?.num_vehicles ?? maxVehicles}</b>
-                    </div>
-                    {summary && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Total Kunjungan</span>
-                        <b>{summary.totSeq} titik</b>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-                </motion.div>
-              )}
+                      <CardContent className="text-sm space-y-3">
+                        <div className="flex justify-between items-center p-3 bg-muted/50 rounded-md">
+                          <span className="text-muted-foreground">Total Waktu (Objective)</span>
+                          <b className="text-lg text-primary">
+                            {data.objective_time_min} min ({minutesToHHMM(data.objective_time_min)})
+                          </b>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Mobil Terpakai</span>
+                          <b>{data.vehicle_used} / {lastResult?.params?.num_vehicles ?? maxVehicles}</b>
+                        </div>
+                        {summary && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Total Kunjungan</span>
+                            <b>{summary.totSeq} titik</b>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                )}
               </AnimatePresence>
             </TabsContent>
 
-            {/* --- TAB CONTENT 2: GROUPS --- */}
+            {/* ── GROUPS TAB ── */}
             <TabsContent value="groups">
               <Card>
                 <CardHeader>
@@ -415,14 +370,13 @@ export default function OptimizePage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {/* Input Search dengan Icon */}
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Cari group…"
                       value={groupQuery}
-                      onChange={(e) => setGroupQuery(e.target.value)}
-                      className="pl-8" // beri padding kiri untuk icon
+                      onChange={e => setGroupQuery(e.target.value)}
+                      className="pl-8"
                     />
                   </div>
 
@@ -441,7 +395,6 @@ export default function OptimizePage() {
                       Belum ada group.
                     </p>
                   ) : (
-                    // Ganti <ul> dengan <ScrollArea> agar tingginya terbatas
                     <ScrollArea className="h-96 rounded-md border">
                       <div className="p-2">
                         {filteredGroups.length === 0 && (
@@ -449,7 +402,7 @@ export default function OptimizePage() {
                             Grup tidak ditemukan.
                           </p>
                         )}
-                        {filteredGroups.map((g) => (
+                        {filteredGroups.map(g => (
                           <li
                             key={g.id}
                             className="list-none py-2 px-3 flex items-center justify-between gap-3 rounded-md hover:bg-muted/50"
@@ -468,7 +421,7 @@ export default function OptimizePage() {
                             </div>
                             <Button
                               size="sm"
-                              variant="secondary" // Ganti jadi secondary agar tidak terlalu ramai
+                              variant="secondary"
                               onClick={() => applyGroup(g)}
                               title="Apply group (replace selection)"
                             >
@@ -486,64 +439,63 @@ export default function OptimizePage() {
         </div>
       </div>
 
-      {/* ====== BAWAH: TABEL RUTE ====== */}
+      {/* ── ROUTE TABLE ── */}
       <AnimatePresence>
-      {data?.routes?.length ? (
-        <motion.div
+        {data?.routes?.length ? (
+          <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            // Beri sedikit delay agar muncul setelah ringkasan (opsional)
             transition={{ duration: 0.3, ease: "easeInOut", delay: 0.1 }}
           >
-        <Card className="overflow-hidden">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-3">
-              <ListTree className="h-5 w-5 text-primary" />
-              Detail Rute per Kendaraan
-            </CardTitle>
-            <CardDescription>
-              Detail urutan, waktu, dan muatan untuk setiap mobil yang digunakan.
-            </CardDescription>
-          </CardHeader>
-          <div className="max-w-full overflow-x-auto">
-            <Table className="min-w-[960px]"> {/* Sedikit lebih lebar */}
-              <TableHeader className="sticky top-0 bg-muted/60 backdrop-blur supports-[backdrop-filter]:bg-muted/40">
-                <TableRow>
-                  <TableHead className="w-[120px]">
-                    <div className="flex items-center gap-2"><Truck className="h-4 w-4" /> Mobil</div>
-                  </TableHead>
-                  <TableHead className="w-[200px]">Total Waktu</TableHead>
-                  <TableHead>Urutan (Sequence)</TableHead>
-                  <TableHead className="w-[280px]">Profil Muatan (Liter)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.routes.map((r) => (
-                  <TableRow key={r.vehicle_id}>
-                    <TableCell className="font-medium">#{r.vehicle_id}</TableCell>
-                    <TableCell className="font-medium">
-                      {r.total_time_min} min ({minutesToHHMM(r.total_time_min)})
-                    </TableCell>
-                    <TableCell className="font-mono text-xs break-all">
-                      {r.sequence.join(" → ")}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      [{r.load_profile_liters.join(", ")}]
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-              <TableCaption className="text-xs">
-                {summary
-                  ? `${summary.totRoute} rute • ${summary.totSeq} total kunjungan`
-                  : `${data.routes.length} rute`}
-              </TableCaption>
-            </Table>
-          </div>
-        </Card>
-        </motion.div>
-      ) : null}
+            <Card className="overflow-hidden">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-3">
+                  <ListTree className="h-5 w-5 text-primary" />
+                  Detail Rute per Kendaraan
+                </CardTitle>
+                <CardDescription>
+                  Detail urutan, waktu, dan muatan untuk setiap mobil yang digunakan.
+                </CardDescription>
+              </CardHeader>
+              <div className="max-w-full overflow-x-auto">
+                <Table className="min-w-[960px]">
+                  <TableHeader className="sticky top-0 bg-muted/60 backdrop-blur supports-[backdrop-filter]:bg-muted/40">
+                    <TableRow>
+                      <TableHead className="w-[120px]">
+                        <div className="flex items-center gap-2"><Truck className="h-4 w-4" /> Mobil</div>
+                      </TableHead>
+                      <TableHead className="w-[200px]">Total Waktu</TableHead>
+                      <TableHead>Urutan (Sequence)</TableHead>
+                      <TableHead className="w-[280px]">Profil Muatan (Liter)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.routes.map(r => (
+                      <TableRow key={r.vehicle_id}>
+                        <TableCell className="font-medium">#{r.vehicle_id}</TableCell>
+                        <TableCell className="font-medium">
+                          {r.total_time_min} min ({minutesToHHMM(r.total_time_min)})
+                        </TableCell>
+                        <TableCell className="font-mono text-xs break-all">
+                          {r.sequence.join(" → ")}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          [{r.load_profile_liters.join(", ")}]
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  <TableCaption className="text-xs">
+                    {summary
+                      ? `${summary.totRoute} rute • ${summary.totSeq} total kunjungan`
+                      : `${data.routes.length} rute`}
+                  </TableCaption>
+                </Table>
+              </div>
+            </Card>
+          </motion.div>
+        ) : null}
       </AnimatePresence>
     </section>
   )

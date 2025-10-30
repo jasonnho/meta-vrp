@@ -4,13 +4,14 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap');
 @import 'leaflet/dist/leaflet.css';
-/* 1. Direktif WAJIB di paling atas. Tanpa ini, semua tidak akan jalan. */
+@import 'leaflet-draw/dist/leaflet.draw.css'; /* Tambahkan ini juga di atas! */
+
+/* 1. Direktif WAJIB di paling atas */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 2. DEFINISI SEMUA VARIABLE WARNA (INI SOLUSINYA).
-      Ini harus ada di dalam @layer base agar bisa dibaca oleh @tailwind base di atas. */
+/* 2. DEFINISI SEMUA VARIABLE WARNA */
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -29,7 +30,7 @@
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%; /* <- Ini yang dicari Tailwind */
+    --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
     --radius: 0.75rem;
@@ -53,18 +54,17 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%; /* <- Ini yang dicari Tailwind (dark) */
+    --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
   }
 
-  /* Ini adalah setup dasar agar warna background, text, dan border otomatis teraplikasikan */
   body {
     @apply bg-background text-foreground;
   }
 }
 
-/* 3. Definisikan komponen custom kamu di dalam @layer components. */
+/* 3. Custom components */
 @layer components {
   .input { @apply px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent; }
   .card  { @apply rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950; }
@@ -75,10 +75,7 @@
   .badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border; }
 }
 
-/* 4. Import library atau style lain-lain di bagian akhir. */
-@import "leaflet/dist/leaflet.css";
-
-/* tinggi map */
+/* 4. tinggi map */
 .map-box {
   height: 480px;
 }
