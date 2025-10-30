@@ -4,6 +4,11 @@ import type { LogsPage } from "../types";
 import type { HistoryItem } from "../types";
 import type { JobDetail, JobVehicle, JobRoute, JobRouteStep } from "../types";
 
+// 1. TAMBAHKAN 'Node' ke daftar impor
+import type { OptimizeResponse, LogEntry, Group, Assignment, RouteStatus, Node } from "../types";
+
+// 2. IMPOR DATA LOKAL ANDA
+import { LOCAL_NODES } from "../data/nodes.data";
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE,
@@ -21,7 +26,7 @@ export async function postJSON<T>(url: string, body?: any): Promise<T> {
 }
 
 // ---- endpoints yang akan kita isi bertahap ----
-import type { OptimizeResponse, LogEntry, Group, Assignment, RouteStatus } from "../types";
+// (Impor tipe pindah ke atas agar bisa menambahkan 'Node')
 
 export const Api = {
   // optimasi
@@ -62,9 +67,17 @@ export const Api = {
   deleteGroup: (id: string) =>
     api.delete(`/groups/${id}`).then(() => true),
 
-  // ---- Nodes (biarkan) ----
-  listNodes: () => getJSON<any[]>("/nodes"),
 
+
+  listNodes: async (): Promise<Node[]> => {
+    console.log("✅ [API INTERCEPT] Mengembalikan data dari 'nodes.data.ts' (bukan backend)");
+
+    // Simulasikan penundaan jaringan
+    await new Promise(res => setTimeout(res, 50));
+
+    // Kembalikan data lokal Anda
+    return LOCAL_NODES;
+  },
   // assignments
   listAssignments: () => getJSON<Assignment[]>("/assignments"),
   createAssignment: (a: Omit<Assignment, "id" | "createdAt">) =>
