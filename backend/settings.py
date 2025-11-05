@@ -15,7 +15,7 @@ class Settings:
 
     # === objective & penalties ===
     LAMBDA_USE_MIN: float = 45.0  # penalti aktivasi kendaraan (menit ekv.)
-    TIME_LIMIT_SEC: float = 10.0  # total waktu solver (construct+ALNS+improve)
+    TIME_LIMIT_SEC: float = 60.0  # total waktu solver (construct+ALNS+improve)
 
     # === ALNS master switch & tuning ===
     USE_ALNS: bool = True  # aktifkan / matikan ALNS
