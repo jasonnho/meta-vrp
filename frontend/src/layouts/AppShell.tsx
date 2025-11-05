@@ -1,27 +1,16 @@
-// frontend/src/layouts/AppShell.tsx
-import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
-// Impor yang DIPERLUKAN
-import {
-  ClipboardList,
-  Map,
-  Users,
-  History,
-  Activity,
-  Leaf,
-  Menu, // <-- 1. 'Menu' SUDAH DITAMBAHKAN
-} from "lucide-react";
+// src/layouts/AppShell.tsx
+import { Outlet, NavLink, useLocation } from "react-router-dom"
+import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { Menu, Leaf, ClipboardList, Map, Users, History, Activity, PanelLeft, PanelRight } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-// --- SHADCN UI ---
-import { Sheet, SheetContent} from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-// 'Separator' dihapus (tidak terpakai)
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-// 'TooltipProvider' dihapus (sudah pindah ke App.tsx)
-import { ThemeToggle } from "@/components/theme-toggle";
+import { useUI } from "../stores/ui"
 
-// --- Logo & Navigasi ---
 const navLinks = [
   { to: "/", label: "Optimasi", icon: Map },
   { to: "/groups", label: "Manajemen Grup", icon: ClipboardList },
@@ -31,7 +20,6 @@ const navLinks = [
   { to: "/editor", label: "Editor Peta", icon: Leaf },
 ];
 
-// Komponen Logo SVG
 function AppLogo({ className }: { className?: string }) {
   return (
     <NavLink
@@ -45,93 +33,205 @@ function AppLogo({ className }: { className?: string }) {
       <div className="flex items-center justify-center w-8 h-8 bg-green-600 rounded-lg text-white">
         <Leaf className="w-5 h-5" />
       </div>
-      <span>MetaVRP</span>
+      <span>Armada Hijau</span>
     </NavLink>
   );
 }
 
-// Komponen Navigasi (untuk desktop & mobile)
-function AppNav() {
+const navContainerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.06,
+    },
+  },
+};
+const navItemVariants = {
+  hidden: { opacity: 0, x: -10 },
+  show: { opacity: 1, x: 0 },
+};
+
+function AppNav({ isCollapsed }: { isCollapsed: boolean }) {
   const { pathname } = useLocation();
+  const { toggleSidebar } = useUI();
+
   return (
-    <nav className="grid items-start gap-1.5">
+    <motion.nav
+      className="grid items-start gap-1.5"
+      variants={navContainerVariants}
+      initial="hidden"
+      animate="show"
+      key={isCollapsed ? 'collapsed' : 'expanded'}
+    >
       {navLinks.map((link) => {
         const isActive = pathname === link.to;
         return (
-          <Tooltip key={link.to}>
-            <TooltipTrigger asChild>
-              <NavLink
-                to={link.to}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground font-semibold"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-              >
-                <link.icon className="h-4 w-4" />
-                {link.label}
-              </NavLink>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>{link.label}</p>
-            </TooltipContent>
-          </Tooltip>
+          <motion.div
+            key={link.to}
+            variants={navItemVariants}
+            whileHover={{ x: 3 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 15 }}
+          >
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <NavLink
+                  to={link.to}
+                  className={cn(
+                    "flex items-center h-10 rounded-lg text-sm transition-colors",
+                    isActive
+                      ? "bg-green-600 text-white font-semibold shadow-md"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    isCollapsed ? "justify-center w-10" : "px-3"
+                  )}
+                >
+                  <link.icon className="h-4 w-4 flex-shrink-0" />
+
+                  <AnimatePresence>
+                    {!isCollapsed && (
+                      <motion.span
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0, transition: { duration: 0.2, delay: 0.15 } }}
+                        exit={{ opacity: 0, x: -10, transition: { duration: 0.1 } }}
+                        className="whitespace-nowrap ml-3"
+                      >
+                        {link.label}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </NavLink>
+              </TooltipTrigger>
+              {isCollapsed && (
+                <TooltipContent side="right">
+                  <p>{link.label}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </motion.div>
         );
       })}
-    </nav>
+
+      <motion.div
+        variants={navItemVariants}
+        whileHover={{ x: 3 }}
+        whileTap={{ scale: 0.98 }}
+        transition={{ type: "spring", stiffness: 400, damping: 15 }}
+        className="mt-4 pt-4 border-t"
+      >
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              onClick={toggleSidebar}
+              className={cn(
+                "flex items-center h-10 w-full rounded-lg text-sm transition-colors text-muted-foreground hover:bg-muted hover:text-foreground",
+                isCollapsed ? "justify-center w-10" : "px-3"
+              )}
+            >
+              {isCollapsed ? <PanelRight className="h-4 w-4 flex-shrink-0" /> : <PanelLeft className="h-4 w-4 flex-shrink-0" />}
+
+              <AnimatePresence>
+                {!isCollapsed && (
+                  <motion.span
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0, transition: { duration: 0.2, delay: 0.15 } }}
+                    exit={{ opacity: 0, x: -10, transition: { duration: 0.1 } }}
+                    className="whitespace-nowrap ml-3"
+                  >
+                    Ciutkan
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </Button>
+          </TooltipTrigger>
+          {isCollapsed && (
+            <TooltipContent side="right">
+              <p>Perluas sidebar</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </motion.div>
+    </motion.nav>
   );
 }
 
 export default function AppShell() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false)
+  const { isSidebarCollapsed } = useUI();
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-      <header className="z-50 border-b bg-background/80 backdrop-blur flex-shrink-0">
+
+      <header className="z-50 border-b border-green-800/20 bg-green-950/10 backdrop-blur flex-shrink-0">
         <div className="container mx-auto flex h-14 items-center justify-between px-4">
+
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              className="md:hidden"
-              onClick={() => setOpen(true)}
-            >
-              <Menu className="h-5 w-5" /> {/* <-- 2. Ini sekarang valid */}
-              <span className="sr-only">Buka menu</span>
-            </Button>
-            <AppLogo />
+            {/* Tombol Menu Mobile */}
+            <Sheet open={open} onOpenChange={setOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="md:hidden"
+                >
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Buka menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="flex flex-col p-0 w-64">
+                <div className="p-4 border-b">
+                  <AppLogo />
+                </div>
+                <div className="p-4 overflow-y-auto">
+                  <AppNav isCollapsed={false} />
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            {/* Logo Desktop */}
+            <div className="hidden md:flex items-center gap-2">
+              <AppLogo />
+            </div>
           </div>
+
           <div className="flex items-center gap-2">
             <ThemeToggle />
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto flex-1 grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4 px-4 py-4 overflow-hidden">
-        <aside className="hidden md:block h-full overflow-y-auto">
+      <div className={cn(
+        "container mx-auto flex-1 grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4 px-4 py-4 overflow-hidden",
+        "transition-[grid-template-columns] duration-300 ease-in-out",
+        isSidebarCollapsed && "md:grid-cols-[72px_1fr]"
+      )}>
+
+        <aside
+          className={cn(
+            "hidden md:block h-full overflow-y-auto",
+            "bg-background/80 backdrop-blur"
+          )}
+        >
           <div className="sticky top-16">
-            <AppNav />
+            <AppNav isCollapsed={isSidebarCollapsed} />
           </div>
         </aside>
 
-        <main className="h-full overflow-y-auto rounded-xl border bg-card">
+        <main className="h-full overflow-y-auto rounded-xl border">
           <div className="p-4 md:p-6">
-            <Outlet /> {/* <-- Halaman Anda di-render di sini */}
+            <Outlet />
           </div>
         </main>
       </div>
 
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="flex flex-col p-0 w-64">
-          <div className="p-4 border-b">
-            <AppLogo />
-          </div>
-          <div className="p-4 overflow-y-auto">
-            <AppNav />
-          </div>
-        </SheetContent>
-      </Sheet>
+      <footer className="flex-shrink-0 border-t bg-background/80 backdrop-blur">
+        <div className="container mx-auto flex h-12 items-center justify-center px-4">
+          <p className="text-xs text-muted-foreground">
+            © {new Date().getFullYear()} MetaVRP Project • Dibuat untuk Proyek Capstone.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
