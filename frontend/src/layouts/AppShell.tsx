@@ -183,7 +183,8 @@ export default function AppShell() {
                 <div className="p-4 border-b">
                   <AppLogo />
                 </div>
-                <div className="p-4 overflow-y-auto">
+                {/* hilangin scroll horizontal di mobile sidebar */}
+                <div className="p-4 overflow-y-auto overflow-x-hidden">
                   <AppNav isCollapsed={false} />
                 </div>
               </SheetContent>
@@ -207,9 +208,10 @@ export default function AppShell() {
         isSidebarCollapsed && "md:grid-cols-[72px_1fr]"
       )}>
 
+        {/* hilangin scroll horizontal di sidebar desktop */}
         <aside
           className={cn(
-            "hidden md:block h-full overflow-y-auto",
+            "hidden md:block h-full overflow-y-auto overflow-x-hidden",
             "bg-background/80 backdrop-blur"
           )}
         >
