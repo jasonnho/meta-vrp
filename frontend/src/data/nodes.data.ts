@@ -1559,7 +1559,19 @@ export const LOCAL_NODES: Node[] = [
     lat: -7.33161376641347,
     lon: 112.775098593619,
     kind: "park",
-    geometry: null
+    geometry: {
+  "type": "LineString",
+  "coordinates": [
+    [
+      112.768916,
+      -7.331188
+    ],
+    [
+      112.778101,
+      -7.331465
+    ]
+  ]
+}
   },
   {
     id: "29",
@@ -1575,7 +1587,19 @@ export const LOCAL_NODES: Node[] = [
     lat: -7.33063,
     lon: 112.770922,
     kind: "park",
-    geometry: null
+    geometry: {
+  "type": "LineString",
+  "coordinates": [
+    [
+      112.769367,
+      -7.331209
+    ],
+    [
+      112.780482,
+      -7.331486
+    ]
+  ]
+}
   },
   {
     id: "31",
@@ -1583,7 +1607,19 @@ export const LOCAL_NODES: Node[] = [
     lat: -7.272785,
     lon: 112.784114,
     kind: "park",
-    geometry: null
+    geometry: {
+  "type": "LineString",
+  "coordinates": [
+    [
+      112.782413,
+      -7.269955
+    ],
+    [
+      112.789366,
+      -7.27087
+    ]
+  ]
+}
   },
   {
     id: "32",
@@ -1591,7 +1627,19 @@ export const LOCAL_NODES: Node[] = [
     lat: -7.268736,
     lon: 112.77994,
     kind: "park",
-    geometry: null
+    geometry: {
+  "type": "LineString",
+  "coordinates": [
+    [
+      112.781915,
+      -7.26992
+    ],
+    [
+      112.778181,
+      -7.269442
+    ]
+  ]
+}
   },
   {
     id: "33",
@@ -1620,7 +1668,19 @@ export const LOCAL_NODES: Node[] = [
     lat: -7.272841,
     lon: 112.771997,
     kind: "park",
-    geometry: null
+    geometry: {
+  "type": "LineString",
+  "coordinates": [
+    [
+      112.781105,
+      -7.275255
+    ],
+    [
+      112.773336,
+      -7.274233
+    ]
+  ]
+}
   },
   {
     id: "35",
@@ -1628,7 +1688,19 @@ export const LOCAL_NODES: Node[] = [
     lat: -7.32793482139103,
     lon: 112.738295009855,
     kind: "park",
-    geometry: null
+    geometry: {
+  "type": "LineString",
+  "coordinates": [
+    [
+      112.756737,
+      -7.330214
+    ],
+    [
+      112.73279,
+      -7.327277
+    ]
+  ]
+}
   },
   {
     id: "36",
@@ -1636,7 +1708,19 @@ export const LOCAL_NODES: Node[] = [
     lat: -7.328991,
     lon: 112.731446,
     kind: "park",
-    geometry: null
+    geometry: {
+  "type": "LineString",
+  "coordinates": [
+    [
+      112.731822,
+      -7.327408
+    ],
+    [
+      112.730127,
+      -7.337123
+    ]
+  ]
+}
   },
   {
     id: "37",
