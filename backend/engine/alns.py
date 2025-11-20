@@ -13,7 +13,7 @@ from .evaluation import (
     total_time_minutes,
     makespan_minutes,
     route_time_minutes,
-)  # <-- Tambahkan ini
+)
 from .construct import greedy_construct
 from .utils import (
     set_seed,
@@ -25,9 +25,8 @@ from .utils import (
     ensure_all_routes_capacity,
     ensure_capacity_with_refills,
 )
-import logging  # Pastikan ini ada di atas
-import random
-from .evaluation import route_time_minutes
+import logging
+from .evaluation import route_time_minutes  # (redundan tapi aman)
 
 log = logging.getLogger(__name__)
 
@@ -76,9 +75,8 @@ class ALNSConfig:
     lambda_capacity: float = 0.0  # set >0 kalau mau penalti kapasitas
 
     # repair strategy
-    use_construct_as_repair: bool = (
-        False  # bisa toggle pakai greedy_construct sebagai repair alternatif
-    )
+    use_construct_as_repair: bool = False
+    rebalance_period: int = 50
 
 
 def alns_optimize(
@@ -98,18 +96,24 @@ def alns_optimize(
     - returns: solusi terbaik menurut objective (total_time_minutes + optional penalti)
     """
     cfg = cfg or ALNSConfig()
-    # --- TAMBAHKAN LOGGING DI SINI ---
+
     log.info(f"ALNS starting with seed: {cfg.seed}")
     set_seed(cfg.seed)
-    # --- AKHIR LOGGING
-    set_seed(cfg.seed)
+
+    # reset cache failed rebalancing moves untuk run ini
+    if hasattr(_rebalance_longest_shortest, "failed_moves"):
+        _rebalance_longest_shortest.failed_moves.clear()
+    else:
+        _rebalance_longest_shortest.failed_moves = set()
 
     # --- operator pools ---
     destroy_ops: List[Tuple[str, DestroyOp]] = [
         ("random_removal", destroy_random),
         ("shaw_removal", destroy_shaw),
         ("worst_removal", destroy_worst),
+        ("longest_removal", destroy_longest),
     ]
+    d_weights = [1.0, 1.0, 1.0, 1.0]
     repair_ops: List[Tuple[str, RepairOp]] = [
         ("greedy_insert", repair_greedy),
         ("regret2_insert", repair_regret2),
@@ -131,21 +135,18 @@ def alns_optimize(
     # tabu
     tabu = TabuList(maxlen=cfg.tabu_tenure)
 
-    # objective helper
-    # alns.py (BARU - Tambahkan perhitungan varians) # Tambahkan ini di awal file alns.py
-
+    # ----- objective helper -----
     def objective(routes: List[List[str]]) -> float:
         route_durations = [
             route_time_minutes(r, nodes, tm) for r in routes if len(r) > 2
-        ]  # Durasi rute yg 'aktif'
+        ]  # Durasi rute aktif
         if not route_durations:
             return 0.0
 
-        makespan = max(route_durations) if route_durations else 0.0
+        makespan = max(route_durations)
         total_time = sum(route_durations)
 
-        # Hitung varians durasi
-        mean_duration = total_time / len(route_durations) if route_durations else 0.0
+        mean_duration = total_time / len(route_durations)
         variance = (
             sum((d - mean_duration) ** 2 for d in route_durations)
             / len(route_durations)
@@ -153,14 +154,14 @@ def alns_optimize(
             else 0.0
         )
 
-        # Atur bobot (alpha) untuk seberapa penting keseimbangan
-        alpha = 10  # <-- Coba utak-atik nilai ini (misal 0.05, 0.1, 0.2)
+        # bobot keseimbangan
+        alpha = 1.0
 
-        # Gabungkan makespan dan penalti varians
-        cost = makespan + alpha * variance
+        gamma = 1.0  # threshold, 100% dari rata-rata (kalau mau 120% jadikan 1.2)
+        over = [max(0.0, d - gamma * mean_duration) for d in route_durations]
+        overload_penalty = sum(o**2 for o in over)
 
-        # Tetap tambahkan total_time sebagai secondary tie-breaker kecil
-        return cost + 1e-3 * total_time
+        return makespan + alpha * variance + 1e-3 * total_time + 0.01 * overload_penalty
 
     # init
     best = deepcopy_routes(init_routes)
@@ -170,9 +171,15 @@ def alns_optimize(
 
     start = time.time()
     it = 0
+    reb_accepted = False
 
-    while time.time() - start < cfg.time_limit_sec and sa.T > sa.Tmin:
+    # ---- early stop state ----
+    no_improve_iters = 0
+    MAX_NO_IMPROVE = 10000  # boleh kamu kecilin/besarin
+
+    while time.time() - start < cfg.time_limit_sec:
         it += 1
+        improved_best = False  # track apakah di iterasi ini best membaik
 
         # --- pilih operator (roulette by weight) ---
         di = weighted_choice(d_weights)
@@ -191,20 +198,17 @@ def alns_optimize(
 
         # --- REPAIR ---
         if cfg.use_construct_as_repair:
-            # jalur alternatif: pakai construct sebagai repair (treat 'removed' sebagai selected_parks)
-            # NOTE: ini me-reset semua rute; biasanya kurang halus tapi kadang berguna
             repaired = greedy_construct(
                 nodes=nodes,
                 tm=tm,
                 selected_parks=[p for p in removed if nodes[p].type == "park"],
                 depot_id=depot_id,
-                num_vehicles=len(partial),  # pakai jumlah rute eksisting
+                num_vehicles=len(partial),
                 vehicle_capacity=vehicle_capacity,
                 allow_refill=allow_refill,
                 refill_ids=refill_ids,
             )
         else:
-            # repair internal (greedy / regret)
             repaired = r_op(
                 partial,
                 removed,
@@ -238,20 +242,16 @@ def alns_optimize(
             if new_cost < best_cost - 1e-9:
                 best = deepcopy_routes(repaired)
                 best_cost = new_cost
-                # reward improve
+                improved_best = True
                 d_scores[di] += cfg.w_improve
                 r_scores[ri] += cfg.w_improve
             else:
-                # reward accepted (non-improving)
                 d_scores[di] += cfg.w_accept
                 r_scores[ri] += cfg.w_accept
 
-            # update tabu dengan node yang baru di-remove (opsional)
             if cfg.use_tabu_on_removed_nodes:
                 tabu.add_many(removed)
-
         else:
-            # rejected move
             d_scores[di] += cfg.w_reject
             r_scores[ri] += cfg.w_reject
 
@@ -269,10 +269,199 @@ def alns_optimize(
                 r_scores[i] = 0.0
                 r_uses[i] = 1e-9
 
+        # --- rebalancing ---
+        if cfg.rebalance_period > 0 and it % cfg.rebalance_period == 0:
+            rebalanced_routes, rebalanced_cost, reb_accepted = (
+                _rebalance_longest_shortest(
+                    current,
+                    nodes,
+                    tm,
+                    vehicle_capacity,
+                    refill_ids,
+                    depot_id,
+                    groups,
+                    objective,
+                    current_cost,
+                    sa,
+                )
+            )
+
+            if reb_accepted:
+                current = rebalanced_routes
+                current_cost = rebalanced_cost
+                if rebalanced_cost < best_cost - 1e-9:
+                    best = deepcopy_routes(rebalanced_routes)
+                    best_cost = rebalanced_cost
+                    improved_best = True
+
         # cool down
         sa.cool()
 
+        # --- EARLY STOP kalau stagnan ---
+        if improved_best:
+            no_improve_iters = 0
+        else:
+            no_improve_iters += 1
+            if no_improve_iters >= MAX_NO_IMPROVE:
+                log.info(
+                    "ALNS early stop: no improvement in %d iterations (best_cost=%.2f)",
+                    no_improve_iters,
+                    best_cost,
+                )
+                break
+
     return best
+
+
+from .utils import deepcopy_routes, ensure_all_routes_capacity
+from .evaluation import route_time_minutes
+
+
+def _rebalance_longest_shortest(
+    routes,
+    nodes,
+    tm,
+    vehicle_capacity,
+    refill_ids,
+    depot_id,
+    groups,
+    objective,
+    current_cost,
+    sa,
+):
+    # inisialisasi cache failed moves (persist di level fungsi)
+    failed_moves = getattr(_rebalance_longest_shortest, "failed_moves", None)
+    if failed_moves is None:
+        failed_moves = set()
+        _rebalance_longest_shortest.failed_moves = failed_moves
+
+    # 1. Hitung durasi setiap rute (hanya yang punya lebih dari 2 node = ada kunjungan)
+    route_durations = []
+    for idx, r in enumerate(routes):
+        if len(r) > 2:
+            dur = route_time_minutes(r, nodes, tm)
+            route_durations.append((dur, idx))
+
+    if len(route_durations) <= 1:
+        return routes, current_cost, False
+
+    # 2. Cari terpanjang & terpendek
+    longest_dur, longest_idx = max(route_durations, key=lambda x: x[0])
+    shortest_dur, shortest_idx = min(route_durations, key=lambda x: x[0])
+
+    if longest_dur - shortest_dur < 1e-3:
+        return routes, current_cost, False
+
+    longest_route = routes[longest_idx]
+    shortest_route = routes[shortest_idx]
+
+    # 3. Kumpulkan semua "base" yang ada di rute terpanjang
+    base_to_nodes_in_longest = {}
+    for nid in longest_route:
+        node = nodes.get(nid)
+        if not node or node.type != "park":
+            continue
+        base = nid.split("#")[0]
+        base_to_nodes_in_longest.setdefault(base, [])
+        base_to_nodes_in_longest[base].append(nid)
+
+    if not base_to_nodes_in_longest:
+        return routes, current_cost, False
+
+    candidate_bases = list(base_to_nodes_in_longest.keys())
+
+    # filter base yang sudah pernah dicoba dan gagal (untuk pair route ini)
+    candidate_bases = [
+        b for b in candidate_bases if (b, longest_idx, shortest_idx) not in failed_moves
+    ]
+    if not candidate_bases:
+        # semua kandidat untuk pair (longest_idx, shortest_idx) sudah pernah gagal
+        return routes, current_cost, False
+
+    best_new_routes = None
+    best_new_cost = None
+    best_base = None
+
+    for base in candidate_bases:
+        parts = base_to_nodes_in_longest[base]
+
+        move_key = (base, longest_idx, shortest_idx)
+        if move_key in failed_moves:
+            # sebenarnya sudah di-filter di atas, tapi jaga-jaga
+            log.debug(
+                "[REBALANCE] SKIP base=%s | longest_idx=%d -> shortest_idx=%d (cached failed)",
+                base,
+                longest_idx,
+                shortest_idx,
+            )
+            continue
+
+        cand_routes = deepcopy_routes(routes)
+
+        # 4a. Hapus semua part base ini dari rute terpanjang
+        cand_longest = cand_routes[longest_idx]
+        cand_longest = [nid for nid in cand_longest if nid not in parts]
+        if cand_longest and cand_longest[0] != routes[longest_idx][0]:
+            cand_longest.insert(0, routes[longest_idx][0])
+        if cand_longest and cand_longest[-1] != routes[longest_idx][-1]:
+            cand_longest.append(routes[longest_idx][-1])
+        cand_routes[longest_idx] = cand_longest
+
+        # 4b. Sisipkan semua parts ke rute terpendek
+        cand_shortest = cand_routes[shortest_idx]
+        if len(cand_shortest) >= 2:
+            insert_pos = len(cand_shortest) - 1
+        else:
+            insert_pos = 1
+        cand_shortest[insert_pos:insert_pos] = parts
+        cand_routes[shortest_idx] = cand_shortest
+
+        # 4c. Perbaiki kapasitas + refill
+        cand_routes, _ = ensure_all_routes_capacity(
+            cand_routes, nodes, vehicle_capacity, refill_ids, tm, depot_id
+        )
+
+        # 4d. Hitung cost baru
+        cand_cost = objective(cand_routes)
+
+        # kalau move ini terlalu parah dibanding durasi longest, bisa di-skip
+        delta_tmp = cand_cost - current_cost
+        if delta_tmp > 10 * longest_dur:
+            # tandai juga sebagai failed supaya nggak dicoba lagi
+            failed_moves.add(move_key)
+            continue
+
+        if best_new_cost is None or cand_cost < best_new_cost:
+            best_new_cost = cand_cost
+            best_new_routes = cand_routes
+            best_base = base
+
+    if best_new_routes is None:
+        return routes, current_cost, False
+
+    delta = best_new_cost - current_cost
+
+    # 5. Acceptance (pakai SA biasa)
+    if delta <= 0 or sa.accept(delta):
+        log.info(
+            "[REBALANCE] ACCEPT base=%s | longest_idx=%d -> shortest_idx=%d | Δ=%.2f",
+            best_base,
+            longest_idx,
+            shortest_idx,
+            delta,
+        )
+        return best_new_routes, best_new_cost, True
+    else:
+        log.info(
+            "[REBALANCE] REJECT base=%s | longest_idx=%d -> shortest_idx=%d | Δ=%.2f",
+            best_base,
+            longest_idx,
+            shortest_idx,
+            delta,
+        )
+        # cache move yang gagal ini supaya nggak di-spam lagi
+        failed_moves.add((best_base, longest_idx, shortest_idx))
+        return routes, current_cost, False
 
 
 # =========================
@@ -291,14 +480,12 @@ def destroy_random(
     Random removal (group-aware): pilih beberapa seed park acak,
     lalu hapus SELURUH anggota grupnya.
     """
-    # kumpulkan semua park
     parks = []
     for r in routes:
         parks.extend([nid for nid in r[1:-1] if nodes[nid].type == "park"])
     if not parks or k <= 0:
         return [], routes
 
-    # pilih seed acak lalu expand ke seluruh grup sampai >= k part
     random.shuffle(parks)
     removed_set = set()
     for nid in parks:
@@ -308,13 +495,11 @@ def destroy_random(
         if sum(1 for p in removed_set if nodes[p].type == "park") >= k:
             break
 
-    # bangun routes baru tanpa semua part yang terhapus
     new_routes = []
     for r in routes:
         new_r = [
             nid for nid in r if not (nid in removed_set and nodes[nid].type == "park")
         ]
-        # jaga depot di ujung
         if new_r and new_r[0] != r[0]:
             new_r.insert(0, r[0])
         if new_r and new_r[-1] != r[-1]:
@@ -350,7 +535,6 @@ def destroy_shaw(
     ordered.sort(key=proximity)
 
     removed_set = set()
-    # mulai dari seed → hapus seluruh grupnya
     for nid in [seed] + ordered:
         base = nid.split("#")[0]
         for part in groups.get(base, [nid]):
@@ -358,7 +542,6 @@ def destroy_shaw(
         if sum(1 for p in removed_set if nodes[p].type == "park") >= k:
             break
 
-    # rebuild routes
     new_routes = []
     for r in routes:
         new_r = [
@@ -425,48 +608,68 @@ def destroy_worst(
     return list(removed_set), new_routes
 
 
+def destroy_longest(routes, nodes, tm, k, groups):
+    durations = [route_time_minutes(r, nodes, tm) for r in routes]
+    if not durations:
+        return [], routes
+    longest_idx = max(range(len(routes)), key=lambda i: durations[i])
+    longest_route = routes[longest_idx]
+
+    parks = [nid for nid in longest_route[1:-1] if nodes[nid].type == "park"]
+    if not parks:
+        return [], routes
+
+    random.shuffle(parks)
+
+    removed_set = set()
+    for nid in parks:
+        base = nid.split("#")[0]
+        for p in groups.get(base, [nid]):
+            removed_set.add(p)
+        if sum(1 for p in removed_set if nodes[p].type == "park") >= k:
+            break
+
+    new_routes = []
+    for r in routes:
+        new_r = [
+            nid for nid in r if not (nid in removed_set and nodes[nid].type == "park")
+        ]
+        if new_r and new_r[0] != r[0]:
+            new_r.insert(0, r[0])
+        if new_r and new_r[-1] != r[-1]:
+            new_r.append(r[-1])
+        new_routes.append(new_r)
+
+    return list(removed_set), new_routes
+
+
 # =========================
 # Repair operators
 # =========================
 
-
 from .utils import best_insertion_index_for_node
-
-
-# Di engine/alns.py
-
-# --- Tambahkan import ini di awal file jika belum ada ---
 import random
-from .evaluation import route_time_minutes  # Pastikan ini sudah diimport
+from .evaluation import route_time_minutes
 
 
-# --- Fungsi repair_greedy yang dimodifikasi ---
-# Di engine/alns.py
-
-
-# --- Fungsi repair_greedy yang dimodifikasi (FIXED) ---
 def repair_greedy(
     routes: List[List[str]],
     removed: List[str],
     nodes: Dict[str, Node],
     tm: TimeMatrix,
-    ctx: dict,  # Konteks berisi capacity, refill_ids, dll.
-    groups: Optional[Dict[str, List[str]]] = None,  # groups tetap dibutuhkan, bisa None
-    balance_probability: float = 0.2,  # Probabilitas mencoba balancing (20%)
-    balance_tolerance: float = 1.1,  # Toleransi: Rute terpendek boleh 10% lebih mahal
+    ctx: dict,
+    groups: Optional[Dict[str, List[str]]] = None,
+    balance_probability: float = 0.7,
+    balance_tolerance: float = 1.05,
 ) -> List[List[str]]:
     """
     Greedy insertion (group-aware) dengan logika balancing tambahan.
-    Dengan probabilitas 'balance_probability', coba sisipkan grup ke rute terpendek
-    jika biayanya tidak > 'balance_tolerance' * biaya termurah.
-    Memperbaiki TypeError dan NameError.
     """
     vehicle_capacity = ctx["vehicle_capacity"]
     refill_ids = ctx["refill_ids"]
-    # allow_refill = ctx["allow_refill"] # Tidak dipakai di sini
     depot_id = ctx["depot_id"]
 
-    current = [r[:] for r in routes]  # Salin rute
+    current = [r[:] for r in routes]
 
     # 1. Kelompokkan 'removed' per base_id
     by_base: Dict[str, List[str]] = {}
@@ -476,40 +679,33 @@ def repair_greedy(
             continue
         base = nid.split("#")[0]
 
-        # --- PERBAIKAN TYPE ERROR DI SINI ---
-        # Cek dulu apakah 'groups' ada dan 'base' ada di dalamnya
         is_split_group = False
         if groups is not None and base in groups:
             is_split_group = True
-        # --- AKHIR PERBAIKAN ---
 
         if is_split_group:
             by_base.setdefault(base, [])
             by_base[base].append(nid)
-        else:  # Node non-split, perlakukan sebagai grup 1 anggota
+        else:
             by_base.setdefault(nid, [])
             by_base[nid].append(nid)
 
-    # Sort parts dalam grup
     for k in by_base:
         by_base[k].sort()
 
-    # Urutkan pemrosesan grup
     group_order = sorted(by_base.keys())
 
-    # 2. Loop untuk menyisipkan setiap grup
     for base in group_order:
         parts = by_base[base]
         if not parts:
             continue
 
-        p0 = parts[0]  # Anchor part
+        p0 = parts[0]
 
-        # 3. Cari posisi & biaya sisip TERMURAH untuk anchor (p0)
         best_overall_delta = float("inf")
         best_overall_route_idx = -1
         best_overall_pos = 1
-        insert_options = []  # (delta, route_idx, pos)
+        insert_options = []
 
         for ri, r in enumerate(current):
             best_pos_in_route = 1
@@ -542,7 +738,6 @@ def repair_greedy(
             log.warning(f"Cannot find valid insertion spot for group {base}. Skipping.")
             continue
 
-        # 4. LOGIKA BALANCING
         target_route_idx = best_overall_route_idx
         target_pos = best_overall_pos
 
@@ -562,7 +757,6 @@ def repair_greedy(
 
                 if shortest_route_option:
                     shortest_delta, _, shortest_pos = shortest_route_option
-                    # Pastikan best_overall_delta tidak nol untuk menghindari ZeroDivisionError
                     if (
                         shortest_delta <= best_overall_delta * balance_tolerance
                         or best_overall_delta <= 1e-9
@@ -570,18 +764,16 @@ def repair_greedy(
                         target_route_idx = shortest_route_idx
                         target_pos = shortest_pos
                         log.debug(
-                            f"Balancing: Inserting group {base} into shorter route {target_route_idx} (cost {shortest_delta:.2f} vs best {best_overall_delta:.2f})"
+                            f"Balancing: Inserting group {base} into shorter route {target_route_idx} "
+                            f"(cost {shortest_delta:.2f} vs best {best_overall_delta:.2f})"
                         )
 
-        # 5. Sisipkan SELURUH BLOK 'parts'
         tgt = current[target_route_idx]
         target_pos = min(target_pos, len(tgt)) if len(tgt) > 0 else 1
         tgt[target_pos:target_pos] = parts
 
-        # 6. Panggil capacity repair SETELAH setiap grup disisipkan
         route_to_fix = current[target_route_idx]
-        # --- PERBAIKAN NAME ERROR SUDAH DILAKUKAN DENGAN IMPORT DI ATAS ---
-        fixed_route, _ = ensure_capacity_with_refills(  # Panggil versi dari utils
+        fixed_route, _ = ensure_capacity_with_refills(
             route_to_fix, nodes, vehicle_capacity, refill_ids, tm, depot_id
         )
         current[target_route_idx] = fixed_route
@@ -598,11 +790,7 @@ def repair_regret2(
     groups: Optional[Dict[str, List[str]]] = None,
 ) -> List[List[str]]:
     """
-    Regret-2 insertion (group-aware):
-    - Kelompokkan removed per base_id.
-    - Untuk tiap grup, pilih rute target pakai regret-2 berdasarkan anggota pertama.
-    - Sisipkan semua anggota grup ke rute target (posisi terbaik per langkah).
-    - Setelah tiap grup, jalankan capacity repair.
+    Regret-2 insertion (group-aware).
     """
     from .utils import ensure_all_routes_capacity, best_insertion_index_for_node
 
@@ -612,7 +800,6 @@ def repair_regret2(
 
     current = deepcopy_routes(routes)
 
-    # kelompokkan per base
     by_base: Dict[str, List[str]] = {}
     for nid in removed:
         if nodes[nid].type != "park":
@@ -620,17 +807,15 @@ def repair_regret2(
         base = nid.split("#")[0]
         by_base.setdefault(base, [])
         by_base[base].append(nid)
-    # sort stabil
+
     for k in by_base:
         by_base[k].sort()
 
-    # urutan proses grup: boleh acak/urut; di sini urut alfabetis base → stabil
     for base in sorted(by_base.keys()):
         parts = by_base[base]
         p0 = parts[0]
 
-        # hitung dua posisi terbaik untuk p0 di tiap rute
-        cand_per_route: List[Tuple[float, float, int, int]] = []  # (d1,d2,ri,j_best)
+        cand_per_route: List[Tuple[float, float, int, int]] = []
         for ri, r in enumerate(current):
             deltas = []
             spots = []
@@ -653,27 +838,15 @@ def repair_regret2(
             cand_per_route.append((d1, d2, ri, j1))
 
         if not cand_per_route:
-            # fallback: rute terpendek
             target_ri = min(range(len(current)), key=lambda i: len(current[i]))
             j_best = 1
         else:
-            # pilih rute dengan regret terbesar (d2 - d1)
             cand_per_route.sort(key=lambda x: (x[1] - x[0]), reverse=True)
             d1, d2, target_ri, j_best = cand_per_route[0]
 
-        # sisipkan p0
-        # alns.py (KODE BARU - BENAR)
-
-        # sisipkan SELURUH GRUP 'parts' di posisi 'j_best'
         tgt = current[target_ri]
-
-        # 'j_best' adalah posisi terbaik untuk 'p0' (anchor)
-        # Kita sisipkan seluruh blok 'parts' di sana
         tgt[j_best:j_best] = parts
 
-        # HAPUS 'for pk in parts[1:]:' ... (loop itu sudah tidak ada)
-
-        # perbaiki kapasitas (auto refill)
         current, _ = ensure_all_routes_capacity(
             current, nodes, vehicle_capacity, refill_ids, tm, depot_id
         )

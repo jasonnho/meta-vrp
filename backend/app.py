@@ -448,7 +448,7 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
 
     alns_cfg = ALNSConfig(
         time_limit_sec=alns_time,
-        seed=int(time.time()),
+        seed=42,
         init_temperature=float(getattr(settings, "ALNS_INIT_TEMP", 1_000.0)),
         cooling_rate=float(getattr(settings, "ALNS_COOLING_RATE", 0.995)),
         min_temperature=float(getattr(settings, "ALNS_MIN_TEMP", 1e-3)),
