@@ -1,8 +1,7 @@
 // src/pages/OptimizePage.tsx
-import { useMemo, useState, useEffect, useRef } from "react" // 1. Impor 'useRef'
+import { useMemo, useState, useEffect, useRef } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Api } from "../lib/api"
-// 2. Impor 'Geometry'
 import type { OptimizeResponse, Node, Group, Geometry } from "../types"
 import { minutesToHHMM } from "../lib/format"
 import NodesMapSelector from "../components/NodesMapSelector"
@@ -10,7 +9,7 @@ import { useUI } from "../stores/ui"
 import { useOptimizeMem } from "../stores/optimize"
 import { motion, AnimatePresence } from "framer-motion"
 
-// 3. Impor Peta Hasil
+// Peta hasil
 import OptimizeResultMap from "../components/OptimizeResultMap"
 
 // --- SHADCN UI ---
@@ -43,8 +42,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
+
 // --- ICONS ---
-// 4. Impor 'FileDown'
 import {
   Loader2,
   Play,
@@ -61,43 +60,42 @@ import {
   FileDown,
 } from "lucide-react"
 
-// Fungsi helper kecil untuk memberi jeda (throttle)
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// Helper kecil
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export default function OptimizePage() {
-  // data nodes & groups (DARI FILE ANDA)
+  // data nodes & groups
   const nodesQ = useQuery({ queryKey: ["nodes"], queryFn: Api.listNodes })
   const groupsQ = useQuery<Group[]>({ queryKey: ["groups"], queryFn: Api.listGroups })
 
-  // selection titik (DARI FILE ANDA)
+  // selection titik
   const { maxVehicles, setMaxVehicles, selected, setSelected } = useUI()
 
   // State untuk OSRM
-  const [routeGeometries, setRouteGeometries] = useState<Geometry[]>([]);
-  const [isFetchingRoutes, setIsFetchingRoutes] = useState(false);
+  const [routeGeometries, setRouteGeometries] = useState<Geometry[]>([])
+  const [isFetchingRoutes, setIsFetchingRoutes] = useState(false)
+
   // State untuk PDF
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false)
 
-  // 5. Refs untuk elemen PDF
-  const mapRef = useRef<HTMLDivElement>(null);
-  const summaryRef = useRef<HTMLDivElement>(null);
-  const tableRef = useRef<HTMLDivElement>(null);
+  // Refs untuk elemen PDF
+  const mapRef = useRef<HTMLDivElement>(null)
+  const summaryRef = useRef<HTMLDivElement>(null)
+  const tableRef = useRef<HTMLDivElement>(null)
 
-  // displayNodes (DARI FILE ANDA)
+  // displayNodes
   const displayNodes = useMemo(() => {
-    if (!nodesQ.data) {
-      return [];
-    }
-    return (nodesQ.data as Node[]).filter(node =>
-      node.id !== '0' && node.kind === 'park'
-    );
-  }, [nodesQ.data]);
+    if (!nodesQ.data) return []
+    return (nodesQ.data as Node[]).filter(
+      node => node.id !== "0" && node.kind === "park",
+    )
+  }, [nodesQ.data])
 
-  // Peta ID ke Node (menggunakan nodesQ.data)
+  // Peta ID -> Node
   const nodesById = useMemo(() => {
-    if (!nodesQ.data) return new Map<string, Node>();
-    return new Map((nodesQ.data as Node[]).map(n => [n.id, n]));
-  }, [nodesQ.data]);
+    if (!nodesQ.data) return new Map<string, Node>()
+    return new Map((nodesQ.data as Node[]).map(n => [n.id, n]))
+  }, [nodesQ.data])
 
   const toggle = (id: string) => {
     const s = new Set(selected)
@@ -106,7 +104,7 @@ export default function OptimizePage() {
   }
 
   const selectAll = () => {
-    setSelected(new Set(displayNodes.map((n) => n.id)));
+    setSelected(new Set(displayNodes.map((n) => n.id)))
   }
 
   const { toast } = useToast()
@@ -114,8 +112,9 @@ export default function OptimizePage() {
 
   const [groupQuery, setGroupQuery] = useState("")
   const [progress, setProgress] = useState(0)
+  const [elapsedSec, setElapsedSec] = useState(0) // NEW: waktu berjalan
 
-  // 6. PERBAIKAN: Gunakan 'useMutation' yang sudah dide-struktur
+  // useMutation untuk optimize
   const {
     mutate,
     isPending,
@@ -134,161 +133,217 @@ export default function OptimizePage() {
         description: `Objective ${res.objective_time_min} menit (${minutesToHHMM(
           res.objective_time_min,
         )})`,
-        action: (
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
-        ),
+        action: <CheckCircle2 className="h-5 w-5 text-green-500" />,
       })
     },
     onError: (err: any) => {
-      // ... (onError tetap sama)
+      console.error("Optimize error:", err)
+      toast({
+        title: "Optimasi Gagal",
+        description:
+          err?.response?.data?.detail ??
+          err?.message ??
+          "Terjadi kesalahan saat menjalankan optimasi.",
+        variant: "destructive",
+      })
     },
   })
 
-  // 'data' adalah hasil optimasi
+  // 'data' adalah hasil optimasi (mutasi atau dari memori)
   const data: OptimizeResponse | undefined = optimizeData ?? lastResult
 
-  // 7. PERBAIKAN: 'clearAll' sekarang mereset semuanya
+  // clear semua (selection + hasil + geometries + state mutasi)
   const clearAll = () => {
-    setSelected(new Set());
-    clearLastResult();
-    setRouteGeometries([]);
-    resetOptimize(); // Reset state mutasi
+    setSelected(new Set())
+    clearLastResult()
+    setRouteGeometries([])
+    resetOptimize()
   }
 
-  // 8. PERBAIKAN: 'handleRun' mereset hasil lama
+  // Run optimasi
   const handleRun = () => {
     const node_ids = Array.from(selected)
-    setRouteGeometries([]);
-    resetOptimize(); // Reset state mutasi SEBELUM run baru
-    mutate({ // Gunakan 'mutate'
+    setRouteGeometries([])
+    resetOptimize()
+    mutate({
       num_vehicles: maxVehicles,
       selected_node_ids: node_ids,
     })
   }
 
-  // Efek OSRM (tidak berubah)
+  // Efek ambil OSRM geometry
   useEffect(() => {
     if (data && nodesById.size > 0) {
       const fetchGeometries = async () => {
-        setIsFetchingRoutes(true);
-        setRouteGeometries([]);
-        const geometries: Geometry[] = [];
+        setIsFetchingRoutes(true)
+        setRouteGeometries([])
+        const geometries: Geometry[] = []
         for (const route of data.routes) {
           for (let i = 0; i < route.sequence.length - 1; i++) {
-            const nodeA = nodesById.get(route.sequence[i]);
-            const nodeB = nodesById.get(route.sequence[i + 1]);
+            const nodeA = nodesById.get(route.sequence[i])
+            const nodeB = nodesById.get(route.sequence[i + 1])
             if (nodeA && nodeB) {
               try {
                 const geometry = await Api.getRouteGeometry(
-                  nodeA.lon, nodeA.lat, nodeB.lon, nodeB.lat
-                );
-                geometries.push(geometry);
-                setRouteGeometries([...geometries]);
-                await sleep(50);
+                  nodeA.lon,
+                  nodeA.lat,
+                  nodeB.lon,
+                  nodeB.lat,
+                )
+                geometries.push(geometry)
+                setRouteGeometries([...geometries])
+                await sleep(50)
               } catch (err) {
-                console.error(`Gagal mengambil segmen ${nodeA.id} -> ${nodeB.id}`, err);
+                console.error(
+                  `Gagal mengambil segmen ${nodeA.id} -> ${nodeB.id}`,
+                  err,
+                )
               }
             }
           }
         }
-        setRouteGeometries(geometries);
-        setIsFetchingRoutes(false);
-      };
-      fetchGeometries();
+        setRouteGeometries(geometries)
+        setIsFetchingRoutes(false)
+      }
+      fetchGeometries()
     }
-  }, [data, nodesById, toast]);
+  }, [data, nodesById, toast])
 
-  // 9. PERBAIKAN: "Bersihkan Hasil" mereset semuanya
+  // Bersihkan hasil optimasi (tanpa nyentuh selection)
   const handleClearResult = () => {
-    clearLastResult();      // Membersihkan memori Zustand
-    setRouteGeometries([]); // Membersihkan rute OSRM
-    resetOptimize();        // Membersihkan 'optimizeData' dari 'useMutation'
+    clearLastResult()
+    setRouteGeometries([])
+    resetOptimize()
   }
 
-  // 10. FUNGSI BARU UNTUK EXPORT PDF
+  // Export PDF
   const handleExportPDF = async () => {
     if (!mapRef.current || !summaryRef.current || !tableRef.current) {
-      toast({ title: "Elemen laporan belum siap, coba lagi", variant: "destructive" });
-      return;
+      toast({
+        title: "Elemen laporan belum siap, coba lagi",
+        variant: "destructive",
+      })
+      return
     }
 
-    setIsExporting(true);
+    setIsExporting(true)
 
     try {
-      const { default: jsPDF } = await import('jspdf');
-      const { default: html2canvas } = await import('html2canvas');
+      const { default: jsPDF } = await import("jspdf")
+      const { default: html2canvas } = await import("html2canvas")
 
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-      const contentWidth = pageWidth - (margin * 2);
-      let currentY = margin;
+      const pdf = new jsPDF("p", "mm", "a4")
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 10
+      const contentWidth = pageWidth - margin * 2
+      let currentY = margin
 
-      pdf.setFontSize(18);
-      pdf.text('Laporan Hasil Optimasi Rute', margin, currentY);
-      currentY += 10;
+      pdf.setFontSize(18)
+      pdf.text("Laporan Hasil Optimasi Rute", margin, currentY)
+      currentY += 10
 
-      // === 1. Tambahkan Peta ===
+      // 1. Map
       const mapCanvas = await html2canvas(mapRef.current, {
         useCORS: true,
-        // Hapus kontrol leaflet dari gambar
-        ignoreElements: (element) => element.classList.contains('leaflet-control-container')
-      });
-      const mapImgData = mapCanvas.toDataURL('image/png');
-      const mapImgProps = pdf.getImageProperties(mapImgData);
-      const mapHeight = (mapImgProps.height * contentWidth) / mapImgProps.width;
-      pdf.addImage(mapImgData, 'PNG', margin, currentY, contentWidth, mapHeight);
-      currentY += mapHeight + margin;
+        ignoreElements: (element) =>
+          element.classList.contains("leaflet-control-container"),
+      })
+      const mapImgData = mapCanvas.toDataURL("image/png")
+      const mapImgProps = pdf.getImageProperties(mapImgData)
+      const mapHeight =
+        (mapImgProps.height * contentWidth) / mapImgProps.width
+      pdf.addImage(mapImgData, "PNG", margin, currentY, contentWidth, mapHeight)
+      currentY += mapHeight + margin
 
-      // === 2. Tambahkan Ringkasan ===
-      const summaryCanvas = await html2canvas(summaryRef.current);
-      const summaryImgData = summaryCanvas.toDataURL('image/png');
-      const summaryImgProps = pdf.getImageProperties(summaryImgData);
-      const summaryHeight = (summaryImgProps.height * contentWidth) / summaryImgProps.width;
+      // 2. Ringkasan
+      const summaryCanvas = await html2canvas(summaryRef.current)
+      const summaryImgData = summaryCanvas.toDataURL("image/png")
+      const summaryImgProps = pdf.getImageProperties(summaryImgData)
+      const summaryHeight =
+        (summaryImgProps.height * contentWidth) / summaryImgProps.width
 
       if (currentY + summaryHeight > pageHeight - margin) {
-          pdf.addPage();
-          currentY = margin;
+        pdf.addPage()
+        currentY = margin
       }
-      pdf.addImage(summaryImgData, 'PNG', margin, currentY, contentWidth, summaryHeight);
-      currentY += summaryHeight + margin;
+      pdf.addImage(
+        summaryImgData,
+        "PNG",
+        margin,
+        currentY,
+        contentWidth,
+        summaryHeight,
+      )
+      currentY += summaryHeight + margin
 
-      // === 3. Tambahkan Tabel ===
-      const tableCanvas = await html2canvas(tableRef.current);
-      const tableImgData = tableCanvas.toDataURL('image/png');
-      const tableImgProps = pdf.getImageProperties(tableImgData);
-      const tableHeight = (tableImgProps.height * contentWidth) / tableImgProps.width;
+      // 3. Tabel
+      const tableCanvas = await html2canvas(tableRef.current)
+      const tableImgData = tableCanvas.toDataURL("image/png")
+      const tableImgProps = pdf.getImageProperties(tableImgData)
+      const tableHeight =
+        (tableImgProps.height * contentWidth) / tableImgProps.width
 
       if (currentY + tableHeight > pageHeight - margin) {
-          pdf.addPage();
-          currentY = margin;
+        pdf.addPage()
+        currentY = margin
       }
-      pdf.addImage(tableImgData, 'PNG', margin, currentY, contentWidth, tableHeight);
+      pdf.addImage(
+        tableImgData,
+        "PNG",
+        margin,
+        currentY,
+        contentWidth,
+        tableHeight,
+      )
 
-      // === 4. Simpan PDF ===
-      pdf.save('hasil-optimasi-meta-vrp.pdf');
-
+      pdf.save("hasil-optimasi-meta-vrp.pdf")
     } catch (err) {
-      console.error("Gagal export PDF:", err);
-      toast({ title: "Gagal mengekspor PDF", description: (err as Error).message, variant: "destructive" });
+      console.error("Gagal export PDF:", err)
+      toast({
+        title: "Gagal mengekspor PDF",
+        description: (err as Error).message,
+        variant: "destructive",
+      })
     }
 
-    setIsExporting(false);
-  };
+    setIsExporting(false)
+  }
 
-  // ringkasan (DARI FILE ANDA)
+  // Terapkan group
+  const applyGroup = (group: Group) => {
+    if (!group.nodeIds || group.nodeIds.length === 0) {
+      toast({
+        title: "Group Kosong",
+        description: "Group ini tidak memiliki titik lokasi.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const newSelection = new Set(group.nodeIds)
+    setSelected(newSelection)
+
+    toast({
+      title: "Group Diterapkan",
+      description: `Berhasil memilih ${newSelection.size} titik dari group "${group.name}".`,
+    })
+  }
+
+  // Ringkasan
   const summary = useMemo(() => {
     if (!data) return null
     const totRoute = data.routes.length
-    const totSeq = data.routes.reduce((s, r) => s + r.sequence.length, 0)
+    const totSeq = data.routes.reduce(
+      (s, r) => s + r.sequence.length,
+      0,
+    )
     return { totRoute, totSeq }
   }, [data])
 
-  // 11. PERBAIKAN: Gunakan 'isPending'
   const canRun = !isPending && maxVehicles > 0 && selected.size > 0
 
-  // Filter groups (DARI FILE ANDA)
+  // Filter groups
   const filteredGroups = useMemo(() => {
     if (!groupsQ.data) return []
     return groupsQ.data.filter((g) =>
@@ -298,33 +353,36 @@ export default function OptimizePage() {
     )
   }, [groupsQ.data, groupQuery])
 
-  // Progress Bar Effect (DARI FILE ANDA)
-  // 12. PERBAIKAN: Gunakan 'isPending'
+  // Progress bar: pseudo-indeterminate + elapsed time
   useEffect(() => {
-    let timer: NodeJS.Timeout | undefined;
+    let progressTimer: NodeJS.Timeout | undefined
+    let elapsedTimer: NodeJS.Timeout | undefined
+
     if (isPending) {
-      setProgress(0);
-      const interval = 300;
-      const totalDuration = 30 * 1000;
-      const increment = (interval / totalDuration) * 100;
-      timer = setInterval(() => {
+      setProgress(0)
+      setElapsedSec(0)
+
+      // Gerakkan bar pelan sampai 90%
+      progressTimer = setInterval(() => {
         setProgress((prev) => {
-          const newProgress = prev + increment;
-          if (newProgress >= 100) {
-            clearInterval(timer);
-            return 100;
-          }
-          return newProgress;
-        });
-      }, interval);
+          if (prev >= 90) return 90
+          return prev + 2
+        })
+      }, 300)
+
+      // Elapsed time beneran (detik)
+      elapsedTimer = setInterval(() => {
+        setElapsedSec((prev) => prev + 1)
+      }, 1000)
     }
+
     return () => {
-      clearInterval(timer);
-      if (!isPending) {
-        setProgress(0);
-      }
-    };
-  }, [isPending]); // <-- Bergantung pada 'isPending'
+      if (progressTimer) clearInterval(progressTimer)
+      if (elapsedTimer) clearInterval(elapsedTimer)
+      setProgress(0)
+      setElapsedSec(0)
+    }
+  }, [isPending])
 
   return (
     <section className="space-y-6 p-1">
@@ -346,9 +404,7 @@ export default function OptimizePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
         {/* ====== KIRI: MAP (SELEKSI ATAU HASIL) ====== */}
-        {/* 13. Tambahkan 'ref={mapRef}' */}
         <div className="lg:col-span-7" ref={mapRef}>
           <Card className="h-full min-h-[600px] flex flex-col">
             <CardHeader className="flex-row items-center justify-between">
@@ -423,7 +479,7 @@ export default function OptimizePage() {
               </TabsTrigger>
             </TabsList>
 
-            {/* --- TAB CONTENT 1: PENGATURAN & HASIL --- */}
+            {/* --- TAB 1: PENGATURAN & HASIL --- */}
             <TabsContent value="settings" className="space-y-4">
               <Card>
                 <CardHeader>
@@ -437,7 +493,9 @@ export default function OptimizePage() {
                       type="number"
                       min={1}
                       value={maxVehicles}
-                      onChange={(e) => setMaxVehicles(Math.max(1, Number(e.target.value)))}
+                      onChange={(e) =>
+                        setMaxVehicles(Math.max(1, Number(e.target.value)))
+                      }
                       className="text-base font-medium"
                     />
                     <p className="text-xs text-muted-foreground">
@@ -448,11 +506,9 @@ export default function OptimizePage() {
                   <Button
                     size="lg"
                     className="w-full"
-                    // 14. PERBAIKAN: Gunakan 'isPending'
                     disabled={!canRun || isPending}
                     onClick={handleRun}
                   >
-                    {/* 15. PERBAIKAN: Gunakan 'isPending' */}
                     {isPending ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -466,17 +522,18 @@ export default function OptimizePage() {
                     )}
                   </Button>
 
-                  {/* 16. PERBAIKAN: Gunakan 'isPending' */}
                   {isPending && (
                     <div className="space-y-2 pt-2 text-center">
                       <Progress value={progress} className="w-full" />
                       <p className="text-sm text-muted-foreground">
-                        Estimasi waktu: 30 detik... ({Math.round(progress)}%)
+                        Sedang menghitung rute… ({elapsedSec}s)
+                      </p>
+                      <p className="text-[11px] text-muted-foreground/80">
+                        Waktu proses bergantung jumlah titik dan jumlah kendaraan.
                       </p>
                     </div>
                   )}
 
-                  {/* 17. PERBAIKAN: Gunakan 'optimizeError' */}
                   {optimizeError && (
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
@@ -491,10 +548,9 @@ export default function OptimizePage() {
                 </CardContent>
               </Card>
 
-              {/* Tampilkan card ringkasan HANYA jika ada data */}
+              {/* Ringkasan hasil */}
               <AnimatePresence>
                 {data && (
-                  // 18. Tambahkan 'ref={summaryRef}'
                   <motion.div
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -505,7 +561,6 @@ export default function OptimizePage() {
                       <CardHeader className="py-4 flex-row items-center justify-between gap-2">
                         <CardTitle className="text-base">Ringkasan Hasil</CardTitle>
                         <div className="flex items-center gap-2">
-                          {/* 19. TOMBOL EXPORT PDF BARU */}
                           <Button
                             variant="outline"
                             size="sm"
@@ -522,7 +577,7 @@ export default function OptimizePage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={handleClearResult} // Tombol ini sudah diperbaiki
+                            onClick={handleClearResult}
                             title="Hapus hasil optimasi terakhir"
                           >
                             <Trash2 className="h-4 w-4 mr-1" />
@@ -532,18 +587,26 @@ export default function OptimizePage() {
                       </CardHeader>
                       <CardContent className="text-sm space-y-3">
                         <div className="flex justify-between items-center p-3 bg-muted/50 rounded-md">
-                          <span className="text-muted-foreground">Total Waktu (Objective)</span>
+                          <span className="text-muted-foreground">
+                            Total Waktu (Objective)
+                          </span>
                           <b className="text-lg text-primary">
-                            {data.objective_time_min} min ({minutesToHHMM(data.objective_time_min)})
+                            {data.objective_time_min} min (
+                            {minutesToHHMM(data.objective_time_min)})
                           </b>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">Mobil Terpakai</span>
-                          <b>{data.vehicle_used} / {lastResult?.params?.num_vehicles ?? maxVehicles}</b>
+                          <b>
+                            {data.vehicle_used} /{" "}
+                            {lastResult?.params?.num_vehicles ?? maxVehicles}
+                          </b>
                         </div>
                         {summary && (
                           <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">Total Kunjungan</span>
+                            <span className="text-muted-foreground">
+                              Total Kunjungan
+                            </span>
                             <b>{summary.totSeq} titik</b>
                           </div>
                         )}
@@ -553,13 +616,13 @@ export default function OptimizePage() {
                 )}
               </AnimatePresence>
 
-              {/* Loading OSRM (tidak berubah) */}
+              {/* Loading OSRM */}
               {isFetchingRoutes && (
-                 <motion.div
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                  >
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                >
                   <Alert className="bg-muted/50">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <AlertTitle>Memuat Rute Jalan...</AlertTitle>
@@ -569,10 +632,9 @@ export default function OptimizePage() {
                   </Alert>
                 </motion.div>
               )}
-
             </TabsContent>
 
-            {/* --- TAB CONTENT 2: GROUPS --- */}
+            {/* --- TAB 2: GROUPS --- */}
             <TabsContent value="groups">
               <Card>
                 <CardHeader>
@@ -621,11 +683,13 @@ export default function OptimizePage() {
                             <div className="min-w-0">
                               <div className="font-medium truncate">{g.name}</div>
                               <div className="text-xs text-muted-foreground flex gap-2">
-                                <span>{(g.nodeIds?.length ?? 0)} points</span>
+                                <span>{g.nodeIds?.length ?? 0} points</span>
                                 {g.description && (
                                   <>
                                     <span>·</span>
-                                    <span className="truncate opacity-80">{g.description}</span>
+                                    <span className="truncate opacity-80">
+                                      {g.description}
+                                    </span>
                                   </>
                                 )}
                               </div>
@@ -653,7 +717,6 @@ export default function OptimizePage() {
       {/* ====== BAWAH: TABEL RUTE ====== */}
       <AnimatePresence>
         {data?.routes?.length ? (
-          // 20. Tambahkan 'ref={tableRef}'
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
@@ -675,19 +738,26 @@ export default function OptimizePage() {
                   <TableHeader className="sticky top-0 bg-muted/60 backdrop-blur supports-[backdrop-filter]:bg-muted/40">
                     <TableRow>
                       <TableHead className="w-[120px]">
-                        <div className="flex items-center gap-2"><Truck className="h-4 w-4" /> Mobil</div>
+                        <div className="flex items-center gap-2">
+                          <Truck className="h-4 w-4" /> Mobil
+                        </div>
                       </TableHead>
                       <TableHead className="w-[200px]">Total Waktu</TableHead>
                       <TableHead>Urutan (Sequence)</TableHead>
-                      <TableHead className="w-[280px]">Profil Muatan (Liter)</TableHead>
+                      <TableHead className="w-[280px]">
+                        Profil Muatan (Liter)
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.routes.map((r) => (
                       <TableRow key={r.vehicle_id}>
-                        <TableCell className="font-medium">#{r.vehicle_id}</TableCell>
                         <TableCell className="font-medium">
-                          {r.total_time_min} min ({minutesToHHMM(r.total_time_min)})
+                          #{r.vehicle_id}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {r.total_time_min} min (
+                          {minutesToHHMM(r.total_time_min)})
                         </TableCell>
                         <TableCell className="font-mono text-xs break-all">
                           {r.sequence.join(" → ")}
