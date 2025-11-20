@@ -43,7 +43,7 @@ class Settings:
         False  # True = pakai greedy_construct utk repair
     )
 
-    IMPROVE_MAX_NO_IMPROVE: int = 1000
+    IMPROVE_MAX_NO_IMPROVE: int = 10000
 
 
 settings = Settings()
