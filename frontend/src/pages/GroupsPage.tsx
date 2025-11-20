@@ -51,7 +51,6 @@ import { Badge } from "@/components/ui/badge"
 import {
   Plus,
   Loader2,
-  Users,
   MoreHorizontal,
   Pencil,
   Trash2,

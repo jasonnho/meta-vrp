@@ -39,30 +39,45 @@ const VEHICLE_STATUS = ["planned", "in_progress", "done", "done_with_issues", "c
 const STEP_STATUS = ["planned", "visited", "skipped", "failed"] as const
 
 // ✨ motion: variants
+// ✨ motion: variants
 const fadeIn = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
   exit: { opacity: 0 },
   transition: { duration: 0.2 },
-}
+} as const
+
 const fadeUp = {
   initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: 8 },
-  transition: { duration: 0.22, ease: "easeOut" },
-}
+  transition: { duration: 0.22, ease: "easeOut" as const },
+} as const
+
 const stagger = {
   initial: { opacity: 0 },
   animate: {
     opacity: 1,
     transition: { staggerChildren: 0.06, delayChildren: 0.04 },
   },
-}
+} as const
+
 const listItem = {
   initial: { opacity: 0, y: 10, scale: 0.98 },
-  animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.22, ease: "easeOut" } },
-  exit: { opacity: 0, y: 6, scale: 0.98, transition: { duration: 0.15 } },
-}
+  animate: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.22, ease: "easeOut" as const },
+  },
+  exit: {
+    opacity: 0,
+    y: 6,
+    scale: 0.98,
+    transition: { duration: 0.15, ease: "easeInOut" as const },
+  },
+} as const
+
 
 export default function StatusPage() {
   const qc = useQueryClient()
@@ -86,8 +101,13 @@ export default function StatusPage() {
   const [updatingStepKey, setUpdatingStepKey] = useState<string | null>(null)
 
   const activeJobs = useMemo(() => {
-    return jobs.filter((j) => !["succeeded", "failed", "cancelled"].includes(j.status))
-  }, [jobs])
+  return jobs.filter((j) => {
+    const status = (j.status ?? "") as string
+    return !["succeeded", "failed", "cancelled"].includes(status)
+  })
+}, [jobs])
+
+
 
   useEffect(() => {
     const q = sp.get("jobId") ?? ""
@@ -164,7 +184,10 @@ export default function StatusPage() {
   const calculateProgress = (steps: JobRouteStep[]): number => {
     if (!steps || steps.length === 0) return 0
     const completedStatuses = ["visited", "skipped", "failed"]
-    const completedCount = steps.filter((s) => completedStatuses.includes(s.status)).length
+    const completedCount = steps.filter((s) =>
+      completedStatuses.includes((s.status ?? "") as string),
+    ).length
+
     return Math.round((completedCount / steps.length) * 100)
   }
 
@@ -239,7 +262,7 @@ export default function StatusPage() {
                           {format(new Date(j.created_at), "dd MMM yyyy")}
                         </span>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <StatusBadge status={j.status} />
+                          <StatusBadge status={(j.status ?? "planned") as string} />
                           <Badge variant="outline">{j.vehicle_count} kendaraan</Badge>
                         </div>
                       </div>
@@ -401,7 +424,7 @@ export default function StatusPage() {
                                                                 {String(s.node_id)}
                                                               </div>
                                                               <div className="text-xs">
-                                                                Status Saat Ini: <StatusBadge status={s.status} />
+                                                                Status Saat Ini: <StatusBadge status={s.status ?? "planned"} />
                                                               </div>
                                                             </div>
                                                           </div>

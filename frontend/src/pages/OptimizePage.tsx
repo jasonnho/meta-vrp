@@ -2,12 +2,13 @@
 import { useMemo, useState, useEffect, useRef } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Api } from "../lib/api"
-import type { OptimizeResponse, Node, Group, Geometry } from "../types"
+import type { OptimizeResponse, Node, Group } from "../types"
 import { minutesToHHMM } from "../lib/format"
 import NodesMapSelector from "../components/NodesMapSelector"
 import { useUI } from "../stores/ui"
 import { useOptimizeMem } from "../stores/optimize"
 import { motion, AnimatePresence } from "framer-motion"
+import type { Geometry } from "geojson"
 
 // Peta hasil
 import OptimizeResultMap from "../components/OptimizeResultMap"
@@ -355,34 +356,33 @@ export default function OptimizePage() {
 
   // Progress bar: pseudo-indeterminate + elapsed time
   useEffect(() => {
-    let progressTimer: NodeJS.Timeout | undefined
-    let elapsedTimer: NodeJS.Timeout | undefined
+  let progressTimer: ReturnType<typeof setInterval> | undefined
+  let elapsedTimer: ReturnType<typeof setInterval> | undefined
 
-    if (isPending) {
-      setProgress(0)
-      setElapsedSec(0)
+  if (isPending) {
+    setProgress(0)
+    setElapsedSec(0)
 
-      // Gerakkan bar pelan sampai 90%
-      progressTimer = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 90) return 90
-          return prev + 2
-        })
-      }, 300)
+    progressTimer = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 90) return 90
+        return prev + 2
+      })
+    }, 300)
 
-      // Elapsed time beneran (detik)
-      elapsedTimer = setInterval(() => {
-        setElapsedSec((prev) => prev + 1)
-      }, 1000)
-    }
+    elapsedTimer = setInterval(() => {
+      setElapsedSec((prev) => prev + 1)
+    }, 1000)
+  }
 
-    return () => {
-      if (progressTimer) clearInterval(progressTimer)
-      if (elapsedTimer) clearInterval(elapsedTimer)
-      setProgress(0)
-      setElapsedSec(0)
-    }
-  }, [isPending])
+  return () => {
+    if (progressTimer) clearInterval(progressTimer)
+    if (elapsedTimer) clearInterval(elapsedTimer)
+    setProgress(0)
+    setElapsedSec(0)
+  }
+}, [isPending])
+
 
   return (
     <section className="space-y-6 p-1">
@@ -599,7 +599,7 @@ export default function OptimizePage() {
                           <span className="text-muted-foreground">Mobil Terpakai</span>
                           <b>
                             {data.vehicle_used} /{" "}
-                            {lastResult?.params?.num_vehicles ?? maxVehicles}
+                            {(lastResult as any)?.params?.num_vehicles ?? maxVehicles}
                           </b>
                         </div>
                         {summary && (

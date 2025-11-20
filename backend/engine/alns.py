@@ -1,32 +1,24 @@
 # alns.py
 from __future__ import annotations
-import math
 import random
 import time
 from typing import Dict, List, Tuple, Callable, Optional
 from dataclasses import dataclass
-import numpy as np
 from .data import Node, TimeMatrix
+from .utils import deepcopy_routes, ensure_all_routes_capacity
+from .evaluation import route_time_minutes
 
 # Di alns.py (Perbaikan Import)
-from .evaluation import (
-    total_time_minutes,
-    makespan_minutes,
-    route_time_minutes,
-)
+
 from .construct import greedy_construct
 from .utils import (
     set_seed,
-    deepcopy_routes,
-    hash_routes,
     SimulatedAnnealing,
     TabuList,
     weighted_choice,
-    ensure_all_routes_capacity,
     ensure_capacity_with_refills,
 )
 import logging
-from .evaluation import route_time_minutes  # (redundan tapi aman)
 
 log = logging.getLogger(__name__)
 
@@ -313,10 +305,6 @@ def alns_optimize(
     return best
 
 
-from .utils import deepcopy_routes, ensure_all_routes_capacity
-from .evaluation import route_time_minutes
-
-
 def _rebalance_longest_shortest(
     routes,
     nodes,
@@ -353,7 +341,7 @@ def _rebalance_longest_shortest(
         return routes, current_cost, False
 
     longest_route = routes[longest_idx]
-    shortest_route = routes[shortest_idx]
+    # shortest_route = routes[shortest_idx]
 
     # 3. Kumpulkan semua "base" yang ada di rute terpanjang
     base_to_nodes_in_longest = {}
@@ -379,7 +367,8 @@ def _rebalance_longest_shortest(
         return routes, current_cost, False
 
     best_new_routes = None
-    best_new_cost = None
+    # FIX: Inisialisasi dengan infinity, bukan None, agar type checker happy
+    best_new_cost = float("inf")
     best_base = None
 
     for base in candidate_bases:
@@ -431,7 +420,8 @@ def _rebalance_longest_shortest(
             failed_moves.add(move_key)
             continue
 
-        if best_new_cost is None or cand_cost < best_new_cost:
+        # FIX: Hapus pengecekan None karena best_new_cost sudah float('inf')
+        if cand_cost < best_new_cost:
             best_new_cost = cand_cost
             best_new_routes = cand_routes
             best_base = base
@@ -647,10 +637,6 @@ def destroy_longest(routes, nodes, tm, k, groups):
 # Repair operators
 # =========================
 
-from .utils import best_insertion_index_for_node
-import random
-from .evaluation import route_time_minutes
-
 
 def repair_greedy(
     routes: List[List[str]],
@@ -792,7 +778,7 @@ def repair_regret2(
     """
     Regret-2 insertion (group-aware).
     """
-    from .utils import ensure_all_routes_capacity, best_insertion_index_for_node
+    from .utils import ensure_all_routes_capacity
 
     vehicle_capacity = ctx["vehicle_capacity"]
     refill_ids = ctx["refill_ids"]

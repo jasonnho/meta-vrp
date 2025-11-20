@@ -46,10 +46,43 @@ import {
 } from "lucide-react"
 
 // ===== ✨ motion variants =====
-const fadeIn = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.2 } }
-const fadeUp = { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: 8 }, transition: { duration: 0.22, ease: "easeOut" } }
-const stagger = { initial: { opacity: 0 }, animate: { opacity: 1, transition: { staggerChildren: 0.06, delayChildren: 0.04 } } }
-const rowItem = { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0, transition: { duration: 0.2 } }, exit: { opacity: 0, y: 6, transition: { duration: 0.15 } } }
+// ===== ✨ motion variants =====
+const fadeIn = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.2 },
+} as const
+
+const fadeUp = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: 8 },
+  transition: { duration: 0.22, ease: "easeOut" as const },
+} as const
+
+const stagger = {
+  initial: { opacity: 0 },
+  animate: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06, delayChildren: 0.04 },
+  },
+} as const
+
+const rowItem = {
+  initial: { opacity: 0, y: 8 },
+  animate: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.2, ease: "easeOut" as const },
+  },
+  exit: {
+    opacity: 0,
+    y: 6,
+    transition: { duration: 0.15, ease: "easeInOut" as const },
+  },
+} as const
+
 
 // helper: YYYY-MM-DD lokal
 function ymdLocal(d: Date) {

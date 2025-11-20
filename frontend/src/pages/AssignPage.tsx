@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -44,22 +44,23 @@ import { motion, AnimatePresence } from "framer-motion"
 
 type PerRVSelection = Record<string, { operatorId?: string; vehicleId?: string; status?: string }>
 
-const STATUS_OPTIONS = ["planned", "in_progress", "done", "done_with_issues", "cancelled"] as const
+// const STATUS_OPTIONS = ["planned", "in_progress", "done", "done_with_issues", "cancelled"] as const
 
+// ✨ motion: variants
 // ✨ motion: variants
 const fadeUp = {
   initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: 8 },
-  transition: { duration: 0.22, ease: "easeOut" },
-}
+  transition: { duration: 0.22, ease: "easeOut" as const },
+} as const
 
 const fadeIn = {
   initial: { opacity: 0 },
   animate: { opacity: 1 },
   exit: { opacity: 0 },
   transition: { duration: 0.18 },
-}
+} as const
 
 const staggerContainer = {
   initial: { opacity: 0 },
@@ -67,13 +68,24 @@ const staggerContainer = {
     opacity: 1,
     transition: { staggerChildren: 0.06, delayChildren: 0.04 },
   },
-}
+} as const
 
 const cardItem = {
   initial: { opacity: 0, y: 10, scale: 0.98 },
-  animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.22, ease: "easeOut" } },
-  exit: { opacity: 0, y: 6, scale: 0.98, transition: { duration: 0.15 } },
-}
+  animate: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.22, ease: "easeOut" as const },
+  },
+  exit: {
+    opacity: 0,
+    y: 6,
+    scale: 0.98,
+    transition: { duration: 0.15, ease: "easeInOut" as const },
+  },
+} as const
+
 
 export default function AssignPage() {
   const qc = useQueryClient()
@@ -92,7 +104,7 @@ export default function AssignPage() {
 
   // --- TAMBAHKAN STATE BARU ---
   const [operatorSearch, setOperatorSearch] = useState("")
-  const [vehicleSearch, setVehicleSearch] = useState("")
+  const [vehicleSearch] = useState("")
   const [newOpError, setNewOpError] = useState("")
   const [newVehError, setNewVehError] = useState("")
   // -----------------------------
@@ -418,7 +430,7 @@ export default function AssignPage() {
                                 <CardHeader className="py-4">
                                   <CardTitle className="text-base flex items-center justify-between">
                                     <span>RV #{v.vehicle_id}</span>
-                                    <StatusBadge status={v.status} />
+                                    <StatusBadge status={v.status ?? "planned"} />
                                   </CardTitle>
                                   <CardDescription>
                                     Estimasi Waktu: {v.route_total_time_min ?? "—"} min
