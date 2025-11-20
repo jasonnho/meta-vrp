@@ -19,7 +19,8 @@ class Settings:
 
     # === ALNS master switch & tuning ===
     USE_ALNS: bool = True  # aktifkan / matikan ALNS
-    ALNS_TIME_FRAC: float = 0.9  # proporsi waktu total utk ALNS (sisanya improve)
+    # proporsi waktu total utk ALNS (sisanya improve)
+    ALNS_TIME_FRAC: float = 0.9
     ALNS_LAMBDA_CAPACITY: float = 0.0  # penalti overload kapasitas (0 = off)
 
     # SA / acceptance params

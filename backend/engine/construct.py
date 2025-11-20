@@ -149,15 +149,6 @@ def greedy_construct(
         if not unserved:
             break  # Semua grup sudah dilayani
 
-    # --- 4. Logika Fallback (DIHAPUS) ---
-    # Logika fallback lama (if unserved and routes:)
-    # tidak kompatibel dengan 'group-aware'.
-    # Jika masih ada 'unserved' setelah semua kendaraan dipakai,
-    # biarkan saja. ALNS (terutama 'repair') akan menanganinya
-    # jika ada node yang 'terhapus' tapi tidak 'ter-repair'.
-    # Dalam skenario kita, ALNS harusnya tidak menambah node baru,
-    # jadi kita harus pastikan greedy construct melayani SEMUA node.
-
     # Karena itu, kita ubah sedikit: jika masih ada unserved,
     # paksa ke rute terakhir.
     if unserved and routes:
