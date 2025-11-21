@@ -3,15 +3,17 @@ from typing import Dict, List, Tuple  # ⬅️ tambah Tuple
 import pandas as pd
 import numpy as np
 
+
 @dataclass(frozen=True)
 class Node:
     id: str
     name: str
     lat: float
     lon: float
-    type: str           # 'depot' | 'park' | 'refill'
+    type: str  # 'depot' | 'park' | 'refill'
     demand_liters: float
     service_min: float
+
 
 class TimeMatrix:
     def __init__(self, ids: List[str], matrix: np.ndarray):
@@ -22,7 +24,10 @@ class TimeMatrix:
     def travel(self, a: str, b: str) -> float:
         return float(self.M[self.index[a], self.index[b]])
 
-def load_nodes_csv(path: str) -> Tuple[Dict[str, Node], List[str]]:  # ⬅️ return ids_in_order juga
+
+def load_nodes_csv(
+    path: str,
+) -> Tuple[Dict[str, Node], List[str]]:  # ⬅️ return ids_in_order juga
     df = pd.read_csv(path)
     required = {"id", "name", "lat", "lon", "type", "demand_liters", "service_min"}
     missing = required - set(df.columns)
@@ -33,8 +38,8 @@ def load_nodes_csv(path: str) -> Tuple[Dict[str, Node], List[str]]:  # ⬅️ re
     ids_in_order: List[str] = []
 
     for _, r in df.iterrows():
-        nid = str(r["id"]).strip()                 # ⬅️ jadikan string + trim
-        ntype = str(r["type"]).strip().lower()     # ⬅️ trim + lower
+        nid = str(r["id"]).strip()  # ⬅️ jadikan string + trim
+        ntype = str(r["type"]).strip().lower()  # ⬅️ trim + lower
         node = Node(
             id=nid,
             name=str(r["name"]).strip(),
@@ -51,6 +56,7 @@ def load_nodes_csv(path: str) -> Tuple[Dict[str, Node], List[str]]:  # ⬅️ re
         raise ValueError("nodes.csv must contain at least one node with type=depot")
 
     return nodes, ids_in_order
+
 
 def load_time_matrix_csv(path: str, ids_in_order: List[str]) -> TimeMatrix:
     M = pd.read_csv(path, header=None).to_numpy(dtype=float)

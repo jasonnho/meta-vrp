@@ -10,19 +10,19 @@ import NodeEditorPage from "./pages/NodeEditorPage"; // Halaman baru Anda
 
 // Definisikan rute-rute Anda
 const routes = [
-  {
-    path: "/",
-    element: <AppShell />, // Gunakan AppShell sebagai layout
-    children: [
-      // Halaman-halaman ini akan di-render di dalam <Outlet /> AppShell
-      { path: "/", element: <OptimizePage /> },
-      { path: "/groups", element: <GroupsPage /> },
-      { path: "/status", element: <StatusPage /> },
-      { path: "/assign", element: <AssignPage /> },
-      { path: "/logs", element: <LogsPage /> },
-      { path: "/editor", element: <NodeEditorPage /> }, // Tambahkan rute editor
-    ],
-  },
+    {
+        path: "/",
+        element: <AppShell />, // Gunakan AppShell sebagai layout
+        children: [
+            // Halaman-halaman ini akan di-render di dalam <Outlet /> AppShell
+            { path: "/", element: <OptimizePage /> },
+            { path: "/groups", element: <GroupsPage /> },
+            { path: "/status", element: <StatusPage /> },
+            { path: "/assign", element: <AssignPage /> },
+            { path: "/logs", element: <LogsPage /> },
+            { path: "/editor", element: <NodeEditorPage /> }, // Tambahkan rute editor
+        ],
+    },
 ];
 
 // Buat instance router
@@ -30,5 +30,5 @@ const router = createBrowserRouter(routes);
 
 // Buat komponen Router yang di-ekspor sebagai DEFAULT
 export default function Router() {
-  return <RouterProvider router={router} />;
+    return <RouterProvider router={router} />;
 }

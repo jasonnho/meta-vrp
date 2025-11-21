@@ -11,22 +11,18 @@ from .settings import settings
 from .engine.data import load_nodes_csv, load_time_matrix_csv
 from .engine.construct import greedy_construct
 from .engine.evaluation import (
-    total_time_minutes,
     route_time_minutes,
     load_profile_liters,
     capacity_trace_and_violations,
 )
 from .engine.evaluation import (
-    total_time_minutes,
-    route_time_minutes,
-    load_profile_liters,
     makespan_minutes,  #  baru
 )
 from .engine.improve import improve_routes
 from .engine.alns import alns_optimize, ALNSConfig
 from .engine.utils import ensure_all_routes_capacity
 from .engine.utils import build_groups_from_expanded_ids
-from .engine.utils import ensure_all_routes_capacity, ensure_groups_single_vehicle
+from .engine.utils import ensure_groups_single_vehicle
 
 from .routers import (
     routes_groups,
@@ -40,17 +36,15 @@ from uuid import uuid4
 from datetime import datetime, timezone
 from .database import SessionLocal
 from .models import JobVehicleRun, JobStepStatus
-
-
-from .engine.data import Node, TimeMatrix  # pastikan impor (local reference)
-from uuid import uuid4
-from datetime import datetime, timezone
 import logging
-
 import time
-import logging
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FTimeout
 import numpy as np
+
+# --- tambahkan di app.py (atau bikin router terpisah) ---
+from pydantic import BaseModel
+from typing import Optional, Literal
+
 
 app = FastAPI(
     title="Meta-VRP API",
@@ -448,7 +442,7 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
 
     alns_cfg = ALNSConfig(
         time_limit_sec=alns_time,
-        seed=int(time.time()),
+        seed=42,
         init_temperature=float(getattr(settings, "ALNS_INIT_TEMP", 1_000.0)),
         cooling_rate=float(getattr(settings, "ALNS_COOLING_RATE", 0.995)),
         min_temperature=float(getattr(settings, "ALNS_MIN_TEMP", 1e-3)),
@@ -631,16 +625,13 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
                 "load": round(t_load - t0, 4),
                 "validate": round(t_val - t_load, 4),
                 "construct": round(t_cons - t_val, 4),
-                "alns": round(alns_dur, 4),  # ⬅️ waktu ALNS
-                "improve": round(improv_dur, 4),  # ⬅️ waktu improve real
+                "alns": round(alns_dur, 4),
+                "improve": round(improv_dur, 4),
                 "evaluate": round(t_eval - max(t_impr1, t_cons), 4),
                 "total": round(t_eval - t0, 4),
             },
-            "expanded": {
-                "selected_in": selected_raw,  # input user
-                "selected_expanded": selected_ids_expanded,  # hasil split-delivery
-            },
-            "alns_config": {  # bantu debug
+            # --- HAPUS BAGIAN "expanded" PERTAMA DI SINI ---
+            "alns_config": {
                 "used": USE_ALNS,
                 "time_limit_sec": alns_cfg.time_limit_sec if USE_ALNS else 0.0,
                 "lambda_capacity": alns_cfg.lambda_capacity,
@@ -648,10 +639,11 @@ def _solve(req: OptimizeRequest) -> OptimizeResponse:
             },
             "refill_positions": route_refills,
             "capacity_violations": cap_diag,
+            # --- GUNAKAN DEFINISI "expanded" YANG KEDUA (LEBIH LENGKAP) ---
             "expanded": {
                 "selected_in": selected_raw,
                 "selected_expanded": selected_ids_expanded,
-                "groups_count": len(groups),  # ⬅️ optional
+                "groups_count": len(groups),
             },
         },
     )
@@ -778,11 +770,6 @@ def optimize(req: OptimizeRequest):
         raise HTTPException(
             status_code=500, detail=f"Internal error: {type(e).__name__}: {e}"
         )
-
-
-# --- tambahkan di app.py (atau bikin router terpisah) ---
-from pydantic import BaseModel
-from typing import Optional, Literal, List
 
 
 class NodeOut(BaseModel):

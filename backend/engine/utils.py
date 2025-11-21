@@ -6,6 +6,7 @@ from collections import deque
 from typing import Iterable, List, Any
 import math
 from .data import Node, TimeMatrix
+from typing import Dict, Tuple
 
 
 def set_seed(seed: int) -> None:
@@ -87,11 +88,6 @@ class TabuList:
             if it in self.set_:
                 return True
         return False
-
-
-# utils.py (tambahkan)
-from typing import List, Dict, Tuple
-from .data import Node, TimeMatrix
 
 
 def _nearest_refill_delta(
@@ -334,11 +330,9 @@ def ensure_groups_single_vehicle(
 
         # --- LANGKAH KRUSIAL: HAPUS SEMUA PARTS DULU ---
         anchor_original_predecessor = depot_id  # Node sebelum anchor
-        anchor_found_in_target_initially = False  # Apakah anchor awalnya di target?
 
         # Cek dulu apakah anchor ada di target route awal
         if anchor_part_for_pos in new_routes[target_route_idx]:
-            anchor_found_in_target_initially = True
             try:
                 anchor_idx = new_routes[target_route_idx].index(anchor_part_for_pos)
                 if anchor_idx > 0:
@@ -346,7 +340,7 @@ def ensure_groups_single_vehicle(
                         anchor_idx - 1
                     ]
             except ValueError:
-                anchor_found_in_target_initially = False  # Seharusnya tidak terjadi
+                pass
 
         # Hapus SEMUA parts dari SEMUA rute
         for ri, r in enumerate(new_routes):

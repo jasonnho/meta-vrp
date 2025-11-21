@@ -21,7 +21,7 @@ def improve_routes(
     depot_id: str,
     groups: Dict[str, List[str]],  # <-- TAMBAH INI
     time_limit_sec: float = 3.0,
-    max_no_improve: int = 10000,
+    max_no_improve: int = 1_000_000_000,
 ) -> List[List[str]]:
     start = time.time()
     best = [r[:] for r in routes]
@@ -34,7 +34,6 @@ def improve_routes(
 
     noimprove = 0
     while time.time() - start < time_limit_sec and noimprove < max_no_improve:
-        improved = False
 
         # 1) Relocate (Group-Aware)
         # Operasi ini HANYA akan memindahkan node non-split
@@ -46,7 +45,6 @@ def improve_routes(
             new_cost = total_time_minutes(cand, nodes, tm)
             if new_cost < best_cost - 1e-9:
                 best, best_cost = cand, new_cost
-                improved = True
                 noimprove = 0  # Reset counter jika ada perbaikan
                 continue  # Langsung ulangi loop
 
@@ -60,7 +58,6 @@ def improve_routes(
             new_cost = total_time_minutes(cand, nodes, tm)
             if new_cost < best_cost - 1e-9:
                 best, best_cost = cand, new_cost
-                improved = True
                 noimprove = 0  # Reset counter
                 continue  # Langsung ulangi loop
 
@@ -74,7 +71,6 @@ def improve_routes(
             new_cost = total_time_minutes(cand, nodes, tm)
             if new_cost < best_cost - 1e-9:
                 best, best_cost = cand, new_cost
-                improved = True
                 noimprove = 0  # Reset counter
                 continue  # Langsung ulangi loop
 

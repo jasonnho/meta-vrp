@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Menu, Leaf, ClipboardList, Map, Users, History, Activity, PanelLeft, PanelRight } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 import { useUI } from "../stores/ui"
 
@@ -184,7 +184,7 @@ export default function AppShell() {
                   <AppLogo />
                 </div>
                 {/* hilangin scroll horizontal di mobile sidebar */}
-                <div className="p-4 overflow-y-auto overflow-x-hidden">
+                <div className="p-4 overflow-y-auto overflow-x-hidden app-scroll">
                   <AppNav isCollapsed={false} />
                 </div>
               </SheetContent>
@@ -211,7 +211,7 @@ export default function AppShell() {
         {/* hilangin scroll horizontal di sidebar desktop */}
         <aside
           className={cn(
-            "hidden md:block h-full overflow-y-auto overflow-x-hidden",
+            "hidden md:block h-full overflow-y-auto overflow-x-hidden app-scroll",
             "bg-background/80 backdrop-blur"
           )}
         >
@@ -220,7 +220,7 @@ export default function AppShell() {
           </div>
         </aside>
 
-        <main className="h-full overflow-y-auto rounded-xl border">
+        <main className="h-full overflow-y-auto rounded-xl border app-scroll">
           <div className="p-4 md:p-6">
             <Outlet />
           </div>

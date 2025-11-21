@@ -1,15 +1,17 @@
 /* =================================================================
-   index.css (VERSI YANG SUDAH DIPERBAIKI)
+   index.css (FINAL FIX)
    ================================================================= */
 
+/* 1. SEMUA IMPORT HARUS DI PALING ATAS (Standard CSS Rule) */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap');
-/* 1. Direktif WAJIB di paling atas. Tanpa ini, semua tidak akan jalan. */
+@import "leaflet/dist/leaflet.css";
+
+/* 2. Direktif Tailwind */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 2. DEFINISI SEMUA VARIABLE WARNA (INI SOLUSINYA).
-      Ini harus ada di dalam @layer base agar bisa dibaca oleh @tailwind base di atas. */
+/* 3. VARIABLE WARNA (SHADCN/UI THEME) */
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -28,7 +30,7 @@
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%; /* <- Ini yang dicari Tailwind */
+    --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
     --radius: 0.75rem;
@@ -52,18 +54,17 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%; /* <- Ini yang dicari Tailwind (dark) */
+    --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
   }
 
-  /* Ini adalah setup dasar agar warna background, text, dan border otomatis teraplikasikan */
   body {
     @apply bg-background text-foreground;
   }
 }
 
-/* 3. Definisikan komponen custom kamu di dalam @layer components. */
+/* 4. KOMPONEN CUSTOM (@apply) */
 @layer components {
   .input { @apply px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent; }
   .card  { @apply rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950; }
@@ -74,10 +75,33 @@
   .badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border; }
 }
 
-/* 4. Import library atau style lain-lain di bagian akhir. */
-@import "leaflet/dist/leaflet.css";
+/* 5. CSS MURNI (NON-TAILWIND) */
 
 /* tinggi map */
 .map-box {
   height: 480px;
+}
+
+/* Custom scrollbar */
+.app-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary)) transparent;
+}
+
+.app-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.app-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-scroll::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--primary));
+  border-radius: 9999px;
+  border: 2px solid transparent;
+}
+
+.app-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--primary-foreground));
 }
