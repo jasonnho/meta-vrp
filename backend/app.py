@@ -772,14 +772,16 @@ def optimize(req: OptimizeRequest):
         )
 
 
+# UPDATE class NodeOut
 class NodeOut(BaseModel):
     id: str
     name: Optional[str] = None
     lat: float
     lon: float
     kind: Optional[Literal["depot", "refill", "park"]] = None
+    demand_liters: float = 0.0  # <--- TAMBAHKAN INI
 
-
+# UPDATE function list_nodes
 @app.get("/nodes", response_model=List[NodeOut])
 def list_nodes():
     try:
@@ -790,7 +792,6 @@ def list_nodes():
     out: List[NodeOut] = []
     for nid in ids_in_order:
         n = nodes_dict[nid]
-        # field di Node: id, name, lat, lon, type, demand_liters, service_min
         out.append(
             NodeOut(
                 id=n.id,
@@ -798,6 +799,7 @@ def list_nodes():
                 lat=float(n.lat),
                 lon=float(n.lon),
                 kind=getattr(n, "type", None),
+                demand_liters=getattr(n, "demand_liters", 0.0), # <--- ISI INI
             )
         )
     return out
