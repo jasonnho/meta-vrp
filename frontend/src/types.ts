@@ -69,8 +69,8 @@ export interface Node {
     name?: string;
     lat: number;
     lon: number;
-    // samakan dengan backend:
     kind?: "depot" | "refill" | "park";
+    demand?: number;
     geometry?: Geometry | null; // <-- TAMBAHKAN FIELD INI
 }
 

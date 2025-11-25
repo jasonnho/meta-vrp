@@ -1,17 +1,17 @@
 // frontend/src/components/NodesMapSelector.tsx
-
-// 1. IMPOR DIPERBARUI: Tambahkan GeoJSON
 import {
     MapContainer,
     TileLayer,
-    CircleMarker,
+    Marker,
     Tooltip,
     useMap,
     GeoJSON,
 } from "react-leaflet";
 import { useMemo, useEffect } from "react";
 import type { Node } from "../types";
-import type { Geometry } from "geojson"; // <-- 2. IMPOR TIPE BARU
+import type { Geometry } from "geojson";
+import L from "leaflet";
+import { getDemandColor } from "../lib/utils";
 
 type Props = {
     nodes: Node[];
@@ -30,13 +30,38 @@ function MapAutoResize() {
     return null;
 }
 
+// --- Custom Icons (DIPERBAIKI) ---
+// Sekarang menerima parameter 'color'
+const createTreeIcon = (isSelected: boolean, color: string) =>
+    L.divIcon({
+        className: "",
+        html: `
+    <div style="
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px;
+      background-color: white; border-radius: 50%;
+      /* Gunakan warna dinamis (color) jika tidak dipilih */
+      border: 2px solid ${isSelected ? "#2563eb" : color};
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    ">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+        fill="${isSelected ? "#2563eb" : color}"
+        stroke="${isSelected ? "#2563eb" : color}"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 19h8a4 4 0 0 0 3.8-5.2 6 6 0 0 0-4-11.5 6 6 0 0 0-11.5 3.6C2.8 7.9 3 12.1 8 19Z"/><path d="M12 19v3"/>
+      </svg>
+    </div>
+  `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32],
+    });
+
 export default function NodesMapSelector({ nodes, selected, onToggle }: Props) {
-    // 🔹 ambil hanya park
     const parks = useMemo(
         () => nodes.filter((n) => n.kind === "park"),
         [nodes]
     );
-    console.log("DATA DITERIMA PETA:", parks);
 
     const center = useMemo<[number, number]>(() => {
         if (!parks.length) return [-7.2575, 112.7521];
@@ -48,8 +73,9 @@ export default function NodesMapSelector({ nodes, selected, onToggle }: Props) {
     return (
         <MapContainer
             center={center}
-            zoom={12}
+            zoom={13}
             className="map-box w-full rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
+            preferCanvas={true}
         >
             <MapAutoResize />
             <TileLayer
@@ -59,68 +85,56 @@ export default function NodesMapSelector({ nodes, selected, onToggle }: Props) {
 
             {parks.map((n) => {
                 const isSel = selected.has(n.id);
+                // 1. Hitung warna berdasarkan demand
+                const demandColor = getDemandColor(n.demand);
 
-                // 3. Style untuk GeoJSON (jika ada geometri)
+                // 2. Tentukan warna akhir (Biru jika dipilih, warna demand jika tidak)
+                const finalColor = isSel ? "#1d4ed8" : demandColor;
+
                 const geoJsonStyle = {
-                    color: isSel ? "#1d4ed8" : "#16a34a", // biru saat dipilih, hijau default
-                    weight: 5, // Buat lebih tebal agar terlihat
-                    opacity: 0.7,
-                    fillColor: isSel ? "#1d4ed8" : "#22c55e",
-                    fillOpacity: 0.4, // Buat isian agak transparan
+                    color: finalColor,
+                    weight: 3,
+                    opacity: 0.8,
+                    fillColor: finalColor,
+                    fillOpacity: 0.4,
                 };
 
-                // 4. Style untuk CircleMarker (fallback)
-                const circleMarkerStyle = {
-                    color: isSel ? "#1d4ed8" : "#16a34a",
-                    fillColor: isSel ? "#1d4ed8" : "#22c55e",
-                };
+                return (
+                    <div key={n.id}>
+                        {/* Layer Geometri */}
+                        {n.geometry && (
+                            <GeoJSON
+                                data={n.geometry as Geometry}
+                                style={geoJsonStyle}
+                                eventHandlers={{ click: () => onToggle(n.id) }}
+                            />
+                        )}
 
-                // ==========================================================
-                //  👇 5. LOGIKA UTAMA ADA DI SINI 👇
-                // ==========================================================
-
-                // JIKA node punya data geometri, gambar sebagai GeoJSON (area/garis)
-                if (n.geometry) {
-                    return (
-                        <GeoJSON
-                            key={n.id}
-                            data={n.geometry as Geometry} // Cast ke tipe Geometry
-                            style={geoJsonStyle}
+                        {/* Layer Marker */}
+                        <Marker
+                            position={[n.lat, n.lon]}
+                            // 3. KIRIM WARNA DEMAND KE IKON
+                            icon={createTreeIcon(isSel, demandColor)}
                             eventHandlers={{ click: () => onToggle(n.id) }}
                         >
-                            <Tooltip>
+                            <Tooltip direction="top" offset={[0, -32]}>
                                 <div className="text-xs">
-                                    <div>
-                                        <b>{n.name ?? n.id}</b>
+                                    <div className="font-bold">
+                                        {n.name ?? n.id}
                                     </div>
-                                    <div>Type: park</div>
-                                    <div>Selected: {isSel ? "Yes" : "No"}</div>
+                                    <div>
+                                        Kebutuhan: {n.demand?.toLocaleString()}{" "}
+                                        L
+                                    </div>
+                                    <div>
+                                        {isSel
+                                            ? "✅ Terpilih"
+                                            : "⬜ Klik untuk pilih"}
+                                    </div>
                                 </div>
                             </Tooltip>
-                        </GeoJSON>
-                    );
-                }
-
-                // JIKA TIDAK, gambar sebagai CircleMarker (titik) seperti sebelumnya
-                return (
-                    <CircleMarker
-                        key={n.id}
-                        center={[n.lat, n.lon] as [number, number]}
-                        pathOptions={circleMarkerStyle} // Gunakan style yg didefinisikan
-                        radius={6}
-                        fillOpacity={0.8}
-                        eventHandlers={{ click: () => onToggle(n.id) }} // klik toggle
-                    >
-                        <Tooltip>
-                            <div className="text-xs">
-                                <div>
-                                    <b>{n.name ?? n.id}</b>
-                                </div>
-                                <div>Type: park</div>
-                                <div>Selected: {isSel ? "Yes" : "No"}</div>
-                            </div>
-                        </Tooltip>
-                    </CircleMarker>
+                        </Marker>
+                    </div>
                 );
             })}
         </MapContainer>

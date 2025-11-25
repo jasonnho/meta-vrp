@@ -17,7 +17,7 @@ import type { Geometry } from "geojson";
 const OSRM_BASE_URL = "https://router.project-osrm.org";
 
 export const api = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE,
+    baseURL: "/api",
     timeout: 90000,
 });
 
