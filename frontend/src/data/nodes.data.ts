@@ -6,6 +6,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26421452253221,
         lon: 112.753214511228,
         kind: "depot",
+        demand: 0,
         geometry: null,
     },
     {
@@ -14,6 +15,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.31255,
         lon: 112.789637,
         kind: "park",
+        demand: 11250,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -42,6 +44,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.319727,
         lon: 112.794787,
         kind: "park",
+        demand: 7500,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -72,6 +75,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.31683485898451,
         lon: 112.78069231604,
         kind: "park",
+        demand: 27000,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -116,6 +120,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.32257221298287,
         lon: 112.775061902115,
         kind: "park",
+        demand: 22500,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -133,6 +138,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.33994593383314,
         lon: 112.78546,
         kind: "park",
+        demand: 10500,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -174,6 +180,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.29896176278623,
         lon: 112.759670015718,
         kind: "park",
+        demand: 1500,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -187,9 +194,10 @@ export const LOCAL_NODES: Node[] = [
     {
         id: "7",
         name: "Ngagel Jaya",
-        lat: -7.290471683415235,
-        lon: 112.75577466585419,
+        lat: -7.288833,
+        lon: 112.75738,
         kind: "park",
+        demand: 5250,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -217,6 +225,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.293365,
         lon: 112.753796,
         kind: "park",
+        demand: 3750,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -245,9 +254,10 @@ export const LOCAL_NODES: Node[] = [
     {
         id: "9",
         name: "Pucang",
-        lat: -7.281277181249599,
-        lon: 112.75584585842341,
+        lat: -7.28879919715402,
+        lon: 112.762143539157,
         kind: "park",
+        demand: 2625,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -276,6 +286,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.278375,
         lon: 112.756881,
         kind: "park",
+        demand: 4125,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -303,6 +314,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.2728,
         lon: 112.756301,
         kind: "park",
+        demand: 3000,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -320,6 +332,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.27089056864984,
         lon: 112.760920864122,
         kind: "park",
+        demand: 1687.5,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -334,6 +347,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.278044,
         lon: 112.762368,
         kind: "park",
+        demand: 1687.5,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -349,6 +363,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.268388,
         lon: 112.760846,
         kind: "park",
+        demand: 1875,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -363,6 +378,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.249943,
         lon: 112.76848,
         kind: "park",
+        demand: 9750,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -377,6 +393,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.25694180667573,
         lon: 112.764340069897,
         kind: "park",
+        demand: 12000,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -394,6 +411,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.27207346364731,
         lon: 112.777723978767,
         kind: "park",
+        demand: 6750,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -408,6 +426,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26348940807039,
         lon: 112.770157852632,
         kind: "park",
+        demand: 1875,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -423,6 +442,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.263357,
         lon: 112.757338,
         kind: "park",
+        demand: 1687.5,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -441,6 +461,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.28802247292814,
         lon: 112.703869004372,
         kind: "park",
+        demand: 3600,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -470,6 +491,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26357891598228,
         lon: 112.782181970799,
         kind: "park",
+        demand: 1312.5,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -489,6 +511,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26154,
         lon: 112.787889,
         kind: "park",
+        demand: 6750,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -513,6 +536,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26475264285899,
         lon: 112.807644255264,
         kind: "park",
+        demand: 1875,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -561,6 +585,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26605741948638,
         lon: 112.796030530819,
         kind: "park",
+        demand: 13500,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -582,6 +607,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.309432,
         lon: 112.769588,
         kind: "park",
+        demand: 6750,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -606,6 +632,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.322853,
         lon: 112.773905,
         kind: "park",
+        demand: 10500,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -623,6 +650,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.32576914483572,
         lon: 112.775604760269,
         kind: "park",
+        demand: 1275,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -643,6 +671,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.33161376641347,
         lon: 112.775098593619,
         kind: "park",
+        demand: 4125,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -657,6 +686,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.319442,
         lon: 112.776129,
         kind: "park",
+        demand: 562.5,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -673,6 +703,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.33063,
         lon: 112.770922,
         kind: "park",
+        demand: 1875,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -687,6 +718,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.272785,
         lon: 112.784114,
         kind: "park",
+        demand: 13500,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -701,6 +733,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.268736,
         lon: 112.77994,
         kind: "park",
+        demand: 9750,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -715,6 +748,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.249705,
         lon: 112.784338,
         kind: "park",
+        demand: 6000,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -729,6 +763,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.272841,
         lon: 112.771997,
         kind: "park",
+        demand: 13500,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -743,6 +778,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.32793482139103,
         lon: 112.738295009855,
         kind: "park",
+        demand: 15000,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -757,6 +793,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.328991,
         lon: 112.731446,
         kind: "park",
+        demand: 15000,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -771,6 +808,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.32841166357431,
         lon: 112.739640893599,
         kind: "park",
+        demand: 1650,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -786,6 +824,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.31063436082465,
         lon: 112.757911740128,
         kind: "park",
+        demand: 4050,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -811,6 +850,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.32935942928463,
         lon: 112.746175962881,
         kind: "park",
+        demand: 4125,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -827,6 +867,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.28876414593385,
         lon: 112.780786693197,
         kind: "park",
+        demand: 22500,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -857,6 +898,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.30852362389809,
         lon: 112.780304813097,
         kind: "park",
+        demand: 27000,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -890,6 +932,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.25669400439523,
         lon: 112.782129447355,
         kind: "park",
+        demand: 40500,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -913,6 +956,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.2903858852801,
         lon: 112.788765657731,
         kind: "park",
+        demand: 4875,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -934,6 +978,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.29420087752013,
         lon: 112.762245843231,
         kind: "park",
+        demand: 12000,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -953,6 +998,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.2995788959269,
         lon: 112.779309142266,
         kind: "park",
+        demand: 3750,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -970,6 +1016,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.28981121143278,
         lon: 112.778004634946,
         kind: "park",
+        demand: 8250,
         geometry: {
             type: "LineString",
             coordinates: [
@@ -987,6 +1034,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.3104301669592,
         lon: 112.782246755245,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -995,6 +1043,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.32081795481247,
         lon: 112.789713698518,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1003,6 +1052,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.31026453029393,
         lon: 112.773219146504,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1011,6 +1061,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.29794390583232,
         lon: 112.782018565984,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1019,6 +1070,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.305785,
         lon: 112.760741,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1027,6 +1079,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.29389645314741,
         lon: 112.757028978886,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1035,6 +1088,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.293485,
         lon: 112.757126,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1043,6 +1097,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.28652076453407,
         lon: 112.754515307842,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1051,6 +1106,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.28234901608304,
         lon: 112.755378736678,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1059,6 +1115,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.27404599419462,
         lon: 112.756197999705,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1067,6 +1124,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.27401043400621,
         lon: 112.757326352338,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1075,6 +1133,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26748914729655,
         lon: 112.756483225181,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1083,6 +1142,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26024829309729,
         lon: 112.759210278096,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1091,6 +1151,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.25613837328099,
         lon: 112.76502468067,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1099,6 +1160,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.25181775658414,
         lon: 112.767250606375,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1107,6 +1169,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.24880778756987,
         lon: 112.768772395435,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1115,14 +1178,16 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26693995937854,
         lon: 112.780430695069,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
         id: "64",
         name: "Selokan Depan Pool Blue Bird Mulyorejo",
         lat: -7.258080050107512,
-        lon: 112.79753714606105,
+        lon: 112.79753714606103,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1131,14 +1196,16 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26185183776644,
         lon: 112.795446215441,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
         id: "66",
         name: "Selokan Depan Bhaskara Sari",
         lat: -7.267703751833873,
-        lon: 112.79633016501911,
+        lon: 112.79633016501913,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1147,6 +1214,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.283663384513563,
         lon: 112.7621692641018,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1155,6 +1223,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.271297553109483,
         lon: 112.796831144931,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1163,6 +1232,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.32693941892664,
         lon: 112.77960328535,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1171,6 +1241,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.322636,
         lon: 112.773424,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1179,6 +1250,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.32269847461815,
         lon: 112.774548282136,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1187,6 +1259,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.32255379464723,
         lon: 112.770578650812,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1195,6 +1268,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.327151,
         lon: 112.775338,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1203,6 +1277,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26826126187543,
         lon: 112.744299679104,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1211,6 +1286,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.27280557175764,
         lon: 112.781375514003,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1219,6 +1295,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.28082898145867,
         lon: 112.781265780619,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1227,6 +1304,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.251463,
         lon: 112.663298,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1235,6 +1313,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.32100116632713,
         lon: 112.746600407857,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1243,6 +1322,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.33167315711864,
         lon: 112.732177736442,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1251,6 +1331,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.32583422734679,
         lon: 112.740329317845,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1259,6 +1340,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.24469474974244,
         lon: 112.734649431406,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1267,6 +1349,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.26527933726654,
         lon: 112.756704302445,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1275,6 +1358,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.29312994123411,
         lon: 112.78394014185,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1283,6 +1367,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.289537,
         lon: 112.768956,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1291,6 +1376,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.28965836496907,
         lon: 112.779104382643,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1299,6 +1385,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.28092811349137,
         lon: 112.771907561617,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
     {
@@ -1307,6 +1394,7 @@ export const LOCAL_NODES: Node[] = [
         lat: -7.244872311539666,
         lon: 112.71647682444902,
         kind: "refill",
+        demand: 0,
         geometry: null,
     },
 ];
