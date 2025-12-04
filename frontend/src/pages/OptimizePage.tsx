@@ -977,7 +977,7 @@ export default function OptimizePage() {
                         animate={{ opacity: 1, y: 0 }}
                     >
                         <Card className="overflow-hidden" ref={tableRef}>
-                            <CardHeader>
+                            <CardHeader className="pb-4 border-b">
                                 <CardTitle className="text-lg flex items-center gap-3">
                                     <ListTree className="h-5 w-5 text-primary" />
                                     Detail Rute
@@ -985,21 +985,21 @@ export default function OptimizePage() {
                             </CardHeader>
                             <div className="max-w-full overflow-x-auto">
                                 <Table className="min-w-[960px]">
-                                    <TableHeader className="sticky top-0 bg-muted/60 backdrop-blur">
-                                        <TableRow>
-                                            <TableHead className="w-[120px]">
+                                    <TableHeader>
+                                        <TableRow className="bg-gradient-to-r from-primary/10 to-primary/5 hover:bg-gradient-to-r hover:from-primary/15 hover:to-primary/10 border-b-2 border-primary/20">
+                                            <TableHead className="w-[120px] font-semibold text-primary">
                                                 Mobil
                                             </TableHead>
-                                            <TableHead className="w-[150px]">
+                                            <TableHead className="w-[150px] font-semibold text-primary">
                                                 Total Waktu
                                             </TableHead>
-                                            <TableHead>
+                                            <TableHead className="font-semibold text-primary">
                                                 Urutan (Sequence)
                                             </TableHead>
-                                            <TableHead className="w-[260px]">
+                                            <TableHead className="w-[260px] font-semibold text-primary">
                                                 Ringkasan Rute
                                             </TableHead>
-                                            <TableHead className="w-[100px] text-right">
+                                            <TableHead className="w-[100px] text-right font-semibold text-primary">
                                                 Aksi
                                             </TableHead>
                                         </TableRow>
@@ -1016,26 +1016,28 @@ export default function OptimizePage() {
                                             return (
                                                 <TableRow
                                                     key={r.vehicle_id}
-                                                    className={
+                                                    className={`hover:bg-primary/5 transition-colors ${
                                                         isHighlighted
-                                                            ? "bg-muted/50"
+                                                            ? "bg-primary/10"
                                                             : ""
-                                                    }
+                                                    }`}
                                                 >
-                                                    <TableCell className="font-medium">
+                                                    <TableCell className="font-semibold py-3">
                                                         <div className="flex items-center gap-2">
                                                             <div
-                                                                className="w-3 h-3 rounded-full shadow-sm"
+                                                                className="w-3 h-3 rounded-full shadow-md ring-1 ring-white/50"
                                                                 style={{
                                                                     backgroundColor:
                                                                         color,
                                                                 }}
                                                             ></div>
-                                                            #{r.vehicle_id}
+                                                            <span className="font-medium">#{r.vehicle_id}</span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="font-medium">
-                                                        {r.total_time_min} min
+                                                    <TableCell className="font-semibold py-3">
+                                                        <span className="inline-block px-2 py-1 bg-primary/10 text-primary rounded text-sm font-medium">
+                                                            {r.total_time_min} min
+                                                        </span>
                                                     </TableCell>
                                                     <TableCell className="text-xs break-all">
                                                         {r.sequence.map(
