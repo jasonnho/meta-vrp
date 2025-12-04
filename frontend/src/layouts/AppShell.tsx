@@ -163,8 +163,8 @@ export default function AppShell() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
 
-      <header className="z-50 border-b border-green-800/20 bg-green-950/10 backdrop-blur flex-shrink-0">
-        <div className="container mx-auto flex h-14 items-center justify-between px-4">
+      <header className="z-50 border-b border-primary/10 bg-gradient-to-r from-primary/5 via-background to-primary/5 backdrop-blur-xl flex-shrink-0">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4">
 
           <div className="flex items-center gap-2">
             {/* Tombol Menu Mobile */}
@@ -220,17 +220,17 @@ export default function AppShell() {
           </div>
         </aside>
 
-        <main className="h-full overflow-y-auto rounded-xl border app-scroll">
-          <div className="p-4 md:p-6">
+        <main className="h-full overflow-y-auto rounded-2xl border bg-gradient-to-br from-card via-card to-primary/[0.02] app-scroll shadow-sm">
+          <div className="p-5 md:p-8">
             <Outlet />
           </div>
         </main>
       </div>
 
-      <footer className="flex-shrink-0 border-t bg-background/80 backdrop-blur">
+      <footer className="flex-shrink-0 border-t border-primary/10 bg-gradient-to-r from-transparent via-primary/[0.02] to-transparent">
         <div className="container mx-auto flex h-12 items-center justify-center px-4">
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} MetaVRP Project • Dibuat untuk Proyek Capstone.
+            © {new Date().getFullYear()} MetaVRP Project • Dibuat untuk Proyek Capstone
           </p>
         </div>
       </footer>
