@@ -619,8 +619,8 @@ export default function OptimizePage() {
                             <CardContent className="pt-0">
                                 <div className="grid grid-cols-3 gap-3">
                                     <div className="flex items-center gap-2 p-2.5 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
-                                        <div 
-                                            className="w-4 h-4 rounded-full shadow-sm flex-shrink-0" 
+                                        <div
+                                            className="w-4 h-4 rounded-full shadow-sm flex-shrink-0"
                                             style={{ backgroundColor: "#16a34a" }}
                                         />
                                         <div className="min-w-0">
@@ -629,8 +629,8 @@ export default function OptimizePage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 p-2.5 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900">
-                                        <div 
-                                            className="w-4 h-4 rounded-full shadow-sm flex-shrink-0" 
+                                        <div
+                                            className="w-4 h-4 rounded-full shadow-sm flex-shrink-0"
                                             style={{ backgroundColor: "#ca8a04" }}
                                         />
                                         <div className="min-w-0">
@@ -639,8 +639,8 @@ export default function OptimizePage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
-                                        <div 
-                                            className="w-4 h-4 rounded-full shadow-sm flex-shrink-0" 
+                                        <div
+                                            className="w-4 h-4 rounded-full shadow-sm flex-shrink-0"
                                             style={{ backgroundColor: "#dc2626" }}
                                         />
                                         <div className="min-w-0">
@@ -794,67 +794,79 @@ export default function OptimizePage() {
                             </Card>
 
                             {/* Selected Parks List - Below Run Optimize */}
-                            {!data && selectedParks.length > 0 && (
-                                <Card>
+                            {!data && (
+                                <Card className="flex-1">
                                     <CardHeader className="py-3 flex-row items-center justify-between">
                                         <CardTitle className="text-sm font-medium flex items-center gap-2">
                                             <TreeDeciduous className="h-4 w-4 text-primary" />
                                             Taman Terpilih ({selectedParks.length})
                                         </CardTitle>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-7 text-xs"
-                                            onClick={() => setSelected(new Set())}
-                                        >
-                                            Hapus Semua
-                                        </Button>
+                                        {selectedParks.length > 0 && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 text-xs"
+                                                onClick={() => setSelected(new Set())}
+                                            >
+                                                Hapus Semua
+                                            </Button>
+                                        )}
                                     </CardHeader>
                                     <CardContent className="pt-0">
-                                        <ScrollArea className="h-[200px] pr-3">
-                                            <div className="space-y-2">
-                                                {selectedParks.map((park) => {
-                                                    const demandColor = getDemandColor(park.demand);
-                                                    return (
-                                                        <div
-                                                            key={park.id}
-                                                            className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
-                                                        >
-                                                            <div className="flex items-center gap-3 min-w-0">
+                                        {selectedParks.length > 0 ? (
+                                            <>
+                                                <ScrollArea className="h-[280px] pr-3">
+                                                    <div className="space-y-2">
+                                                        {selectedParks.map((park) => {
+                                                            const demandColor = getDemandColor(park.demand);
+                                                            return (
                                                                 <div
-                                                                    className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm"
-                                                                    style={{ backgroundColor: demandColor }}
-                                                                />
-                                                                <div className="min-w-0">
-                                                                    <p className="text-sm font-medium truncate">
-                                                                        {park.name ?? park.id}
-                                                                    </p>
-                                                                    <p className="text-xs text-muted-foreground">
-                                                                        {park.demand?.toLocaleString("id-ID")} L
-                                                                    </p>
+                                                                    key={park.id}
+                                                                    className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
+                                                                >
+                                                                    <div className="flex items-center gap-3 min-w-0">
+                                                                        <div
+                                                                            className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm"
+                                                                            style={{ backgroundColor: demandColor }}
+                                                                        />
+                                                                        <div className="min-w-0">
+                                                                            <p className="text-sm font-medium truncate">
+                                                                                {park.name ?? park.id}
+                                                                            </p>
+                                                                            <p className="text-xs text-muted-foreground">
+                                                                                {park.demand?.toLocaleString("id-ID")} L
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        onClick={() => toggle(park.id)}
+                                                                    >
+                                                                        <X className="h-4 w-4" />
+                                                                    </Button>
                                                                 </div>
-                                                            </div>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                onClick={() => toggle(park.id)}
-                                                            >
-                                                                <X className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    );
-                                                })}
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </ScrollArea>
+                                                <div className="mt-3 pt-3 border-t flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">Total Kebutuhan Air:</span>
+                                                    <span className="font-semibold text-primary">
+                                                        {selectedParks
+                                                            .reduce((sum, p) => sum + (p.demand ?? 0), 0)
+                                                            .toLocaleString("id-ID")} L
+                                                    </span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="h-[280px] flex items-center justify-center">
+                                                <p className="text-sm text-muted-foreground text-center">
+                                                    Klik taman pada peta untuk memilih
+                                                </p>
                                             </div>
-                                        </ScrollArea>
-                                        <div className="mt-3 pt-3 border-t flex justify-between text-sm">
-                                            <span className="text-muted-foreground">Total Kebutuhan Air:</span>
-                                            <span className="font-semibold text-primary">
-                                                {selectedParks
-                                                    .reduce((sum, p) => sum + (p.demand ?? 0), 0)
-                                                    .toLocaleString("id-ID")} L
-                                            </span>
-                                        </div>
+                                        )}
                                     </CardContent>
                                 </Card>
                             )}
