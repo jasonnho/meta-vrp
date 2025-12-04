@@ -103,9 +103,25 @@ export default function OptimizePage() {
     const summaryRef = useRef<HTMLDivElement>(null);
     const tableRef = useRef<HTMLDivElement>(null);
 
-    const displayNodes = useMemo(() => {
-        return nodes.filter((node) => node.id !== "0" && node.kind === "park");
-    }, [nodes]);
+    const parks = useMemo(
+        () => nodes.filter((node) => node.id !== "0" && node.kind === "park"),
+        [nodes]
+    );
+
+    const [parkQuery, setParkQuery] = useState("");
+
+    const visibleParks = useMemo(() => {
+        const q = parkQuery.trim().toLowerCase();
+        if (!q) return parks;
+        return parks.filter((p) => (p.name ?? p.id).toLowerCase().includes(q));
+    }, [parks, parkQuery]);
+
+    // Nodes to pass to maps: keep non-park nodes always, but only include
+    // parks that match the search query so markers/list reflect the filter.
+    const nodesForMap = useMemo(
+        () => nodes.filter((n) => n.kind !== "park" || visibleParks.some((p) => p.id === n.id)),
+        [nodes, visibleParks]
+    );
 
     const nodesById = useMemo(
         () => new Map(nodes.map((n) => [n.id, n])),
@@ -119,7 +135,7 @@ export default function OptimizePage() {
     };
 
     const selectAll = () => {
-        setSelected(new Set(displayNodes.map((n) => n.id)));
+        setSelected(new Set(visibleParks.map((n) => n.id)));
     };
 
     const { toast } = useToast();
@@ -569,7 +585,7 @@ export default function OptimizePage() {
                                         />
                                     ) : (
                                         <NodesMapSelector
-                                            nodes={nodes}
+                                            nodes={nodesForMap}
                                             selected={selected}
                                             onToggle={toggle}
                                         />
@@ -602,6 +618,66 @@ export default function OptimizePage() {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-6">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="park-search">
+                                            Cari Taman
+                                        </Label>
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                            <Input
+                                                id="park-search"
+                                                placeholder="Ketik nama taman..."
+                                                className="pl-9"
+                                                value={parkQuery}
+                                                onChange={(e) =>
+                                                    setParkQuery(e.target.value)
+                                                }
+                                            />
+                                        </div>
+                                        {/* Recommendation list */}
+                                        {parkQuery.trim() && visibleParks.length > 0 && (
+                                            <ScrollArea className="max-h-48 rounded-md border bg-background">
+                                                <div className="p-1">
+                                                    {visibleParks.slice(0, 10).map((park) => {
+                                                        const isSelected = selected.has(park.id);
+                                                        return (
+                                                            <button
+                                                                key={park.id}
+                                                                type="button"
+                                                                onClick={() => toggle(park.id)}
+                                                                className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-md hover:bg-muted transition-colors ${
+                                                                    isSelected ? "bg-primary/10" : ""
+                                                                }`}
+                                                            >
+                                                                <span className="truncate">
+                                                                    {park.name ?? park.id}
+                                                                </span>
+                                                                <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        {park.demand?.toLocaleString()} L
+                                                                    </span>
+                                                                    {isSelected && (
+                                                                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                                                                    )}
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                    {visibleParks.length > 10 && (
+                                                        <p className="text-xs text-muted-foreground text-center py-2">
+                                                            +{visibleParks.length - 10} taman lainnya
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </ScrollArea>
+                                        )}
+                                        {parkQuery.trim() && visibleParks.length === 0 && (
+                                            <p className="text-sm text-muted-foreground py-2">
+                                                Tidak ada taman yang cocok
+                                            </p>
+                                        )}
+                                    </div>
+
                                     <div className="space-y-2">
                                         <Label htmlFor="max-vehicles">
                                             Jumlah Mobil
