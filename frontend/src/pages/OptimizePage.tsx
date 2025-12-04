@@ -528,34 +528,36 @@ export default function OptimizePage() {
     }, [isPending]);
 
     return (
-        <section className="space-y-8">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                    <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-                        Optimasi Rute
-                    </h1>
-                    <p className="text-muted-foreground text-sm">
-                        Pilih titik taman, atur parameter, dan jalankan kalkulasi rute
-                    </p>
-                </div>
-                <div className="flex-shrink-0 flex items-center gap-3">
-                    <div className="flex items-center gap-3 px-4 py-2.5 border rounded-xl bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
-                        <ListChecks className="h-5 w-5 text-primary" />
-                        <span className="font-medium text-sm">Titik Dipilih</span>
-                        <Badge
-                            variant="default"
-                            className="text-sm px-3 py-1 bg-primary shadow-sm"
-                        >
-                            {selected.size}
-                        </Badge>
+        <section className="relative">
+            {/* Header - Fixed Sticky with proper z-index */}
+            <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm shadow-none border-b-0">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-6 py-4">
+                    <div className="space-y-1">
+                        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                            Optimasi Rute
+                        </h1>
+                        <p className="text-muted-foreground text-sm">
+                            Pilih titik taman, atur parameter, dan jalankan kalkulasi rute
+                        </p>
+                    </div>
+                    <div className="flex-shrink-0 flex items-center gap-3">
+                        <div className="flex items-center gap-3 px-4 py-2.5 border rounded-xl bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+                            <ListChecks className="h-5 w-5 text-primary" />
+                            <span className="font-medium text-sm">Titik Dipilih</span>
+                            <Badge
+                                variant="default"
+                                className="text-sm px-3 py-1 bg-primary shadow-sm"
+                            >
+                                {selected.size}
+                            </Badge>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-screen">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-screen pt-0">
                 {/* Kiri: Peta + Legend */}
-                <div className="lg:col-span-7 flex flex-col gap-4" ref={mapRef}>
+                <div className="lg:col-span-7 flex flex-col gap-4 z-0" ref={mapRef}>
                     {/* Map Card */}
                     <Card className="flex-1 flex flex-col">
                         <CardHeader className="flex-row items-center justify-between py-4">
