@@ -35,7 +35,7 @@
     --ring: 142 71% 35%;
     --radius: 0.75rem;
     --font-sans: "Inter", sans-serif;
-    
+
     /* Custom design tokens */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
@@ -63,7 +63,7 @@
     --border: 150 15% 16%;
     --input: 150 15% 16%;
     --ring: 142 60% 50%;
-    
+
     /* Dark mode shadow tokens */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
@@ -92,55 +92,55 @@
 
 /* 4. KOMPONEN CUSTOM (@apply) */
 @layer components {
-  .input { 
+  .input {
     @apply px-3 py-2.5 rounded-lg border border-input bg-background/50 backdrop-blur-sm;
     @apply transition-all duration-200 ease-out;
     @apply hover:border-primary/30 focus:border-primary focus:ring-2 focus:ring-primary/20;
   }
-  
-  .card { 
+
+  .card {
     @apply rounded-2xl border bg-card;
     box-shadow: var(--shadow-card);
     @apply transition-shadow duration-200;
   }
-  
+
   .card:hover {
     box-shadow: var(--shadow-md);
   }
-  
+
   .card-h { @apply px-5 py-4 border-b text-sm font-semibold; }
   .card-b { @apply p-5; }
-  
-  .btn { 
+
+  .btn {
     @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold;
     @apply bg-primary text-primary-foreground;
     @apply transition-all duration-200 ease-out;
     @apply hover:brightness-110 hover:shadow-md active:scale-[0.98];
     @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none;
   }
-  
+
   .btn-secondary {
     @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium;
     @apply bg-secondary text-secondary-foreground;
     @apply transition-all duration-200 hover:bg-secondary/80;
   }
-  
-  .btn-ghost { 
+
+  .btn-ghost {
     @apply inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium;
     @apply text-muted-foreground hover:text-foreground hover:bg-muted;
     @apply transition-colors duration-150;
   }
-  
-  .badge { 
+
+  .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
     @apply transition-colors duration-150;
   }
-  
+
   /* Glassmorphism utility */
   .glass {
     @apply bg-background/80 backdrop-blur-md border border-border/50;
   }
-  
+
   /* Gradient text utility */
   .gradient-text {
     @apply bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent;

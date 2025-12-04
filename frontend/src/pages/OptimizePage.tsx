@@ -643,7 +643,7 @@ export default function OptimizePage() {
                                             <span className="text-xs text-muted-foreground">&gt;20K</span>
                                         </div>
                                     </div>
-                                    
+
                                     {/* Stats */}
                                     <div className="flex items-center gap-4 text-xs">
                                         <div className="flex items-center gap-1.5">
