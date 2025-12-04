@@ -767,8 +767,8 @@ export default function OptimizePage() {
                                             <TableHead>
                                                 Urutan (Sequence)
                                             </TableHead>
-                                            <TableHead className="w-[200px]">
-                                                Profil Muatan (L)
+                                            <TableHead className="w-[260px]">
+                                                Ringkasan Rute
                                             </TableHead>
                                             <TableHead className="w-[100px] text-right">
                                                 Aksi
@@ -808,16 +808,166 @@ export default function OptimizePage() {
                                                     <TableCell className="font-medium">
                                                         {r.total_time_min} min
                                                     </TableCell>
-                                                    <TableCell className="font-mono text-xs break-all">
-                                                        {r.sequence.join(" → ")}
-                                                    </TableCell>
-                                                    <TableCell className="font-mono text-xs">
-                                                        [
-                                                        {r.load_profile_liters.join(
-                                                            ", "
+                                                    <TableCell className="text-xs break-all">
+                                                        {r.sequence.map(
+                                                            (id, idx) => {
+                                                                const [
+                                                                    rawId,
+                                                                    visitSuffix,
+                                                                ] =
+                                                                    id.split(
+                                                                        "#"
+                                                                    );
+                                                                const node =
+                                                                    nodesById.get(
+                                                                        rawId
+                                                                    );
+                                                                const nodeName =
+                                                                    node?.name ??
+                                                                    rawId;
+
+                                                                const visitNum =
+                                                                    visitSuffix
+                                                                        ? Number(
+                                                                              visitSuffix
+                                                                          )
+                                                                        : null;
+
+                                                                return (
+                                                                    <span
+                                                                        key={id}
+                                                                        className="inline-flex items-center gap-1 mr-1"
+                                                                    >
+                                                                        {idx >
+                                                                            0 && (
+                                                                            <span className="mx-1">
+                                                                                →
+                                                                            </span>
+                                                                        )}
+
+                                                                        {/* Nama titik */}
+                                                                        <span>
+                                                                            {
+                                                                                nodeName
+                                                                            }
+                                                                        </span>
+
+                                                                        {/* Badge kecil kalau ini kunjungan ke-2, ke-3, dst */}
+                                                                        {visitNum &&
+                                                                            visitNum >
+                                                                                1 && (
+                                                                                <span className="text-[10px] px-1 py-[1px] rounded-full border border-muted-foreground/40 text-muted-foreground">
+                                                                                    ke-
+                                                                                    {
+                                                                                        visitNum
+                                                                                    }
+                                                                                </span>
+                                                                            )}
+                                                                    </span>
+                                                                );
+                                                            }
                                                         )}
-                                                        ]
                                                     </TableCell>
+
+                                                    <TableCell className="text-xs">
+                                                        {(() => {
+                                                            // mapping id -> node
+                                                            const nodesOnRoute =
+                                                                r.sequence
+                                                                    .map((id) =>
+                                                                        nodesById.get(
+                                                                            id.split(
+                                                                                "#"
+                                                                            )[0]
+                                                                        )
+                                                                    )
+                                                                    .filter(
+                                                                        (
+                                                                            n
+                                                                        ): n is Node =>
+                                                                            Boolean(
+                                                                                n
+                                                                            )
+                                                                    );
+
+                                                            // total titik (exclude depot kalau mau)
+                                                            const stops =
+                                                                nodesOnRoute.filter(
+                                                                    (n) =>
+                                                                        n.kind !==
+                                                                        "depot"
+                                                                ).length;
+
+                                                            // jumlah refill
+                                                            const refillCount =
+                                                                nodesOnRoute.filter(
+                                                                    (n) =>
+                                                                        n.kind ===
+                                                                        "refill"
+                                                                ).length;
+
+                                                            // total demand air (L) di taman
+                                                            const totalDemand =
+                                                                nodesOnRoute
+                                                                    .filter(
+                                                                        (n) =>
+                                                                            n.kind ===
+                                                                            "park"
+                                                                    )
+                                                                    .reduce(
+                                                                        (
+                                                                            sum,
+                                                                            n
+                                                                        ) =>
+                                                                            sum +
+                                                                            (n.demand ??
+                                                                                0),
+                                                                        0
+                                                                    );
+
+                                                            // max load dari profil muatan (kalau mau dipakai)
+                                                            const maxLoad =
+                                                                r
+                                                                    .load_profile_liters
+                                                                    .length > 0
+                                                                    ? Math.max(
+                                                                          ...r.load_profile_liters
+                                                                      )
+                                                                    : 0;
+
+                                                            return (
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    <span className="inline-flex items-center rounded-full border px-2 py-[2px] text-[11px]">
+                                                                        🏁{" "}
+                                                                        {stops}{" "}
+                                                                        titik
+                                                                    </span>
+                                                                    <span className="inline-flex items-center rounded-full border px-2 py-[2px] text-[11px]">
+                                                                        💧{" "}
+                                                                        {totalDemand.toLocaleString(
+                                                                            "id-ID"
+                                                                        )}{" "}
+                                                                        L
+                                                                        disiram
+                                                                    </span>
+                                                                    <span className="inline-flex items-center rounded-full border px-2 py-[2px] text-[11px]">
+                                                                        ♻️{" "}
+                                                                        {
+                                                                            refillCount
+                                                                        }{" "}
+                                                                        refill
+                                                                    </span>
+                                                                    {/* Optional: kalau mau tampilkan juga maksimum muatan yang pernah dibawa */}
+                                                                    {/*
+        <span className="inline-flex items-center rounded-full border px-2 py-[2px] text-[11px]">
+          📦 max {maxLoad.toLocaleString("id-ID")} L
+        </span>
+        */}
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </TableCell>
+
                                                     <TableCell className="text-right">
                                                         <TooltipProvider>
                                                             <Tooltip>
