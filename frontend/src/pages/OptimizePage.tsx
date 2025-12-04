@@ -67,6 +67,7 @@ import {
     X,
     Droplets,
     TreeDeciduous,
+    BarChart3,
 } from "lucide-react";
 
 const ROUTE_COLORS = [
@@ -139,6 +140,21 @@ export default function OptimizePage() {
             .filter((n): n is Node => Boolean(n) && n.kind === "park")
             .sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id));
     }, [selected, nodesById]);
+
+    // Quick stats for parks
+    const parkStats = useMemo(() => {
+        const totalDemand = parks.reduce((sum, p) => sum + (p.demand ?? 0), 0);
+        const lowDemand = parks.filter((p) => (p.demand ?? 0) < 10000);
+        const medDemand = parks.filter((p) => (p.demand ?? 0) >= 10000 && (p.demand ?? 0) <= 20000);
+        const highDemand = parks.filter((p) => (p.demand ?? 0) > 20000);
+        return {
+            total: parks.length,
+            totalDemand,
+            low: lowDemand.length,
+            med: medDemand.length,
+            high: highDemand.length,
+        };
+    }, [parks]);
 
     const toggle = (id: string) => {
         const s = new Set(selected);
@@ -537,11 +553,11 @@ export default function OptimizePage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Kiri: Peta + Legend + Selected Parks */}
-                <div className="lg:col-span-7 space-y-4" ref={mapRef}>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-screen">
+                {/* Kiri: Peta + Legend */}
+                <div className="lg:col-span-7 flex flex-col gap-4" ref={mapRef}>
                     {/* Map Card */}
-                    <Card className="min-h-[500px] flex flex-col">
+                    <Card className="flex-1 flex flex-col">
                         <CardHeader className="flex-row items-center justify-between py-4">
                             <div className="flex items-center gap-3">
                                 <MapPin className="h-5 w-5 text-primary" />
@@ -570,7 +586,7 @@ export default function OptimizePage() {
                                 </div>
                             )}
                         </CardHeader>
-                        <CardContent className="flex-1 pt-0 flex flex-col">
+                        <CardContent className="pt-0 flex-1 flex flex-col">
                             {isLoadingNodes && (
                                 <Alert className="mt-4">
                                     <Loader2 className="animate-spin" />
@@ -584,7 +600,7 @@ export default function OptimizePage() {
                                 </Alert>
                             )}
                             {nodes.length > 0 && (
-                                <div className="flex-1 rounded-lg border overflow-hidden min-h-[400px]">
+                                <div className="rounded-lg border overflow-hidden flex-1 min-h-0">
                                     {data ? (
                                         <OptimizeResultMap
                                             nodes={nodes}
@@ -607,45 +623,46 @@ export default function OptimizePage() {
                         </CardContent>
                     </Card>
 
-                    {/* Color Legend */}
+                    {/* Color Legend + Quick Stats - Compact Bar */}
                     {!data && (
-                        <Card>
-                            <CardHeader className="py-3">
-                                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                                    <Droplets className="h-4 w-4 text-primary" />
-                                    Keterangan Warna (Kebutuhan Air)
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="pt-0">
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
-                                        <div
-                                            className="w-4 h-4 rounded-full shadow-sm flex-shrink-0"
-                                            style={{ backgroundColor: "#16a34a" }}
-                                        />
-                                        <div className="min-w-0">
-                                            <p className="text-xs font-semibold text-green-700 dark:text-green-400">Rendah</p>
-                                            <p className="text-[10px] text-green-600/70 dark:text-green-500/70">&lt; 10.000 L</p>
+                        <Card className="flex-shrink-0">
+                            <CardContent className="py-3">
+                                <div className="flex flex-wrap items-center justify-between gap-4">
+                                    {/* Legend */}
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-3 h-3 rounded-full bg-green-500" />
+                                            <span className="text-xs text-muted-foreground">&lt;10K</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                                            <span className="text-xs text-muted-foreground">10-20K</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-3 h-3 rounded-full bg-red-500" />
+                                            <span className="text-xs text-muted-foreground">&gt;20K</span>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900">
-                                        <div
-                                            className="w-4 h-4 rounded-full shadow-sm flex-shrink-0"
-                                            style={{ backgroundColor: "#ca8a04" }}
-                                        />
-                                        <div className="min-w-0">
-                                            <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400">Sedang</p>
-                                            <p className="text-[10px] text-yellow-600/70 dark:text-yellow-500/70">10.000 - 20.000 L</p>
+                                    
+                                    {/* Stats */}
+                                    <div className="flex items-center gap-4 text-xs">
+                                        <div className="flex items-center gap-1.5">
+                                            <TreeDeciduous className="h-3.5 w-3.5 text-primary" />
+                                            <span className="text-muted-foreground">Total:</span>
+                                            <span className="font-semibold">{parkStats.total}</span>
                                         </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
-                                        <div
-                                            className="w-4 h-4 rounded-full shadow-sm flex-shrink-0"
-                                            style={{ backgroundColor: "#dc2626" }}
-                                        />
-                                        <div className="min-w-0">
-                                            <p className="text-xs font-semibold text-red-700 dark:text-red-400">Tinggi</p>
-                                            <p className="text-[10px] text-red-600/70 dark:text-red-500/70">&gt; 20.000 L</p>
+                                        <Separator orientation="vertical" className="h-4" />
+                                        <div className="flex items-center gap-1.5">
+                                            <Droplets className="h-3.5 w-3.5 text-blue-500" />
+                                            <span className="font-semibold">{(parkStats.totalDemand / 1000).toFixed(0)}K L</span>
+                                        </div>
+                                        <Separator orientation="vertical" className="h-4" />
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-green-600 font-medium">{parkStats.low}</span>
+                                            <span className="text-muted-foreground">/</span>
+                                            <span className="text-yellow-600 font-medium">{parkStats.med}</span>
+                                            <span className="text-muted-foreground">/</span>
+                                            <span className="text-red-600 font-medium">{parkStats.high}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -655,8 +672,8 @@ export default function OptimizePage() {
                 </div>
 
                 {/* Kanan: Kontrol */}
-                <div className="lg:col-span-5">
-                    <Tabs defaultValue="settings" className="w-full">
+                <div className="lg:col-span-5 flex flex-col">
+                    <Tabs defaultValue="settings" className="w-full flex-1 flex flex-col">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="settings">
                                 <Settings className="mr-2 h-4 w-4" />
@@ -668,14 +685,14 @@ export default function OptimizePage() {
                             </TabsTrigger>
                         </TabsList>
 
-                        <TabsContent value="settings" className="space-y-4">
+                        <TabsContent value="settings" className="flex-1 flex flex-col gap-4 mt-4 min-h-0">
                             <Card>
-                                <CardHeader>
+                                <CardHeader className="py-3">
                                     <CardTitle className="text-base">
                                         Parameter Optimasi
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="space-y-6">
+                                <CardContent className="space-y-4">
                                     <div className="space-y-2">
                                         <Label htmlFor="park-search">
                                             Cari Taman
@@ -795,8 +812,8 @@ export default function OptimizePage() {
 
                             {/* Selected Parks List - Below Run Optimize */}
                             {!data && (
-                                <Card className="flex-1">
-                                    <CardHeader className="py-3 flex-row items-center justify-between">
+                                <Card className="flex-1 flex flex-col min-h-0">
+                                    <CardHeader className="py-3 flex-row items-center justify-between flex-shrink-0">
                                         <CardTitle className="text-sm font-medium flex items-center gap-2">
                                             <TreeDeciduous className="h-4 w-4 text-primary" />
                                             Taman Terpilih ({selectedParks.length})
@@ -812,10 +829,10 @@ export default function OptimizePage() {
                                             </Button>
                                         )}
                                     </CardHeader>
-                                    <CardContent className="pt-0">
+                                    <CardContent className="pt-0 flex-1 flex flex-col min-h-0">
                                         {selectedParks.length > 0 ? (
-                                            <>
-                                                <ScrollArea className="h-[280px] pr-3">
+                                            <div className="flex-1 flex flex-col min-h-0">
+                                                <ScrollArea className="flex-1 min-h-0 pr-3">
                                                     <div className="space-y-2">
                                                         {selectedParks.map((park) => {
                                                             const demandColor = getDemandColor(park.demand);
@@ -851,7 +868,7 @@ export default function OptimizePage() {
                                                         })}
                                                     </div>
                                                 </ScrollArea>
-                                                <div className="mt-3 pt-3 border-t flex justify-between text-sm">
+                                                <div className="mt-3 pt-3 border-t flex justify-between text-sm flex-shrink-0">
                                                     <span className="text-muted-foreground">Total Kebutuhan Air:</span>
                                                     <span className="font-semibold text-primary">
                                                         {selectedParks
@@ -859,9 +876,9 @@ export default function OptimizePage() {
                                                             .toLocaleString("id-ID")} L
                                                     </span>
                                                 </div>
-                                            </>
+                                            </div>
                                         ) : (
-                                            <div className="h-[280px] flex items-center justify-center">
+                                            <div className="flex-1 flex items-center justify-center min-h-0">
                                                 <p className="text-sm text-muted-foreground text-center">
                                                     Klik taman pada peta untuk memilih
                                                 </p>

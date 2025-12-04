@@ -74,7 +74,7 @@ export default function NodesMapSelector({ nodes, selected, onToggle }: Props) {
         <MapContainer
             center={center}
             zoom={13}
-            className="map-box w-full rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
+            className="map-box w-full h-full rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
             preferCanvas={true}
         >
             <MapAutoResize />
