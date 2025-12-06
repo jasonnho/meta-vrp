@@ -1,12 +1,14 @@
-from sqlalchemy import String, Boolean, Text, Numeric, Integer, ForeignKey, TIMESTAMP
+import os
+from uuid import uuid4
+
+from sqlalchemy import TIMESTAMP, Boolean, ForeignKey, Integer, Numeric, String, Text
 
 # from sqlalchemy.dialects.sqlite import BLOB as SQLITE_UUID  # safe for SQLite
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from uuid import uuid4
+
 from .database import Base
-import os
 
 
 # UUID column helper (works for SQLite & Postgres)

@@ -1,24 +1,25 @@
 # alns.py
 from __future__ import annotations
+
+import logging
 import random
 import time
-from typing import Dict, List, Tuple, Callable, Optional
 from dataclasses import dataclass
-from .data import Node, TimeMatrix
-from .utils import deepcopy_routes, ensure_all_routes_capacity
-from .evaluation import route_time_minutes
+from typing import Callable, Dict, List, Optional, Tuple
 
 # Di alns.py (Perbaikan Import)
-
 from .construct import greedy_construct
+from .data import Node, TimeMatrix
+from .evaluation import route_time_minutes
 from .utils import (
-    set_seed,
     SimulatedAnnealing,
     TabuList,
-    weighted_choice,
+    deepcopy_routes,
+    ensure_all_routes_capacity,
     ensure_capacity_with_refills,
+    set_seed,
+    weighted_choice,
 )
-import logging
 
 log = logging.getLogger(__name__)
 

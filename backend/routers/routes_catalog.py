@@ -1,15 +1,15 @@
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import uuid4
 
-from ..database import get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
-from ..schemas_extra import OperatorCreate, OperatorOut, VehicleCreate, VehicleOut
-from ..models import Operator, Vehicle
 from pydantic import BaseModel, Field
+from sqlalchemy import exists, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select, exists
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..models import Operator, Vehicle
+from ..schemas_extra import OperatorCreate, OperatorOut, VehicleCreate, VehicleOut
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 

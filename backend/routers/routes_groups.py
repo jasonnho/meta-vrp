@@ -1,13 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from uuid import uuid4
 from typing import List, Optional
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import delete
+from sqlalchemy.orm import Session
+
 from ..database import get_db
+from ..deps import get_current_user
 from ..models import ParkGroup, ParkGroupItem
 from ..schemas_extra import ParkGroupCreate, ParkGroupOut
-from ..deps import get_current_user
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 

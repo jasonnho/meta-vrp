@@ -2,6 +2,7 @@
 
 import time
 from typing import Dict, List
+
 from .data import Node, TimeMatrix
 from .evaluation import total_time_minutes
 from .neighborhoods import (

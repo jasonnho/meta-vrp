@@ -1,10 +1,12 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
+
 from ..database import get_db
-from ..models import JobStepStatus
-from ..schemas_extra import StepStatusUpdate, StepStatusOut
 from ..deps import get_current_user
+from ..models import JobStepStatus
+from ..schemas_extra import StepStatusOut, StepStatusUpdate
 
 router = APIRouter(prefix="/jobs", tags=["status"])
 VALID_STEP_STATUS = {"planned", "visited", "skipped", "failed"}

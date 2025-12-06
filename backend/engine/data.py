@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from typing import Dict, List, Tuple  # ⬅️ tambah Tuple
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 
 @dataclass(frozen=True)

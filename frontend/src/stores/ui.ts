@@ -1,6 +1,6 @@
 // src/stores/ui.ts
-import { create } from "zustand"
-import { persist, createJSONStorage } from "zustand/middleware"
+import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 
 // 1. Tambahkan state baru ke 'interface'
 interface UIState {
@@ -22,17 +22,16 @@ export const useUI = create(
       setSelected: (s) => set({ selected: s }),
 
       isSidebarCollapsed: false,
-      toggleSidebar: () =>
-        set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
+      toggleSidebar: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
     }),
     {
-      name: "meta-vrp-ui-storage",
+      name: 'meta-vrp-ui-storage',
       storage: createJSONStorage(() => localStorage), // Ganti ke localStorage agar lebih permanen
 
       partialize: (state) => ({
         maxVehicles: state.maxVehicles,
         isSidebarCollapsed: state.isSidebarCollapsed, // <-- TAMBAHKAN INI
       }),
-    }
-  )
+    },
+  ),
 )
