@@ -519,6 +519,4 @@ Proyek ini dilisensikan di bawah **MIT License**. Lihat file [LICENSE](LICENSE) 
 
 ---
 
-**Built with ❤️ using FastAPI, React, and ALNS Algorithm**
-
 © 2025 Meta-VRP Project. All rights reserved.
