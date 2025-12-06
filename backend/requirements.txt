@@ -9,7 +9,7 @@ greenlet==3.2.4
 h11==0.16.0
 idna==3.11
 mypy_extensions==1.1.0
-numpy==2.3.5
+numpy==2.2.0
 packaging==25.0
 pandas==2.3.3
 pathspec==0.12.1
