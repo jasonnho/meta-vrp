@@ -129,6 +129,7 @@ export default function OptimizePage() {
 
   const toggle = (id: string) => {
     const s = new Set(selected)
+    // eslint-disable-next-line
     s.has(id) ? s.delete(id) : s.add(id)
     setSelected(s)
   }

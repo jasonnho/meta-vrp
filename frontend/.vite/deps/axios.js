@@ -490,7 +490,6 @@ var descriptors = {}
   'ERR_CANCELED',
   'ERR_NOT_SUPPORT',
   'ERR_INVALID_URL',
-   
 ].forEach((code) => {
   descriptors[code] = { value: code }
 })
@@ -603,7 +602,6 @@ function toFormData(obj, formData, options) {
         arr.forEach(function each(el, index) {
           !(utils_default.isUndefined(el) || el === null) &&
             formData.append(
-               
               indexes === true
                 ? renderKey([key], index, dots)
                 : indexes === null
@@ -839,7 +837,7 @@ var hasStandardBrowserEnv =
   (!_navigator || ['ReactNative', 'NativeScript', 'NS'].indexOf(_navigator.product) < 0)
 var hasStandardBrowserWebWorkerEnv = (() => {
   return (
-    typeof WorkerGlobalScope !== 'undefined' &&  
+    typeof WorkerGlobalScope !== 'undefined' &&
     self instanceof WorkerGlobalScope &&
     typeof self.importScripts === 'function'
   )

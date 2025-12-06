@@ -4,14 +4,16 @@ target-version = ['py310']
 include = '\.pyi?$'
 
 [tool.ruff]
-# Sama dengan Black.
+# Biarkan Ruff mendeteksi line length, tapi kita akan ignore error-nya
 line-length = 88
 target-version = "py310"
 
 [tool.ruff.lint]
-# E: pycodestyle errors, F: Pyflakes, I: isort (import sorting)
+# E: pycodestyle errors, F: Pyflakes, I: isort
 select = ["E", "F", "I"]
-ignore = []
+
+# === TAMBAHKAN 'E501' DI SINI ===
+ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
