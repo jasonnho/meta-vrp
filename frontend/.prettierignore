@@ -1,6 +1,14 @@
-# frontend/.prettierignore
+# Folder default yang diabaikan
 dist
 node_modules
 .vite
 public
 package-lock.json
+
+# File spesifik yang dikecualikan (sesuai permintaan)
+src/components/ui/pagination.tsx
+src/layouts/AppShell.tsx
+src/pages/OptimizePage.tsx
+src/stores/ui.ts
+src/stores/optimize.ts
+src/stores/selection.ts
