@@ -1,0 +1,6 @@
+# frontend/.prettierignore
+dist
+node_modules
+.vite
+public
+package-lock.json
