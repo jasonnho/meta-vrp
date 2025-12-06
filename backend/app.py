@@ -1,50 +1,45 @@
 # app.py
+import logging
 import math
-from typing import List, Dict, Tuple
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FTimeout
+from datetime import datetime, timezone
+from typing import Dict, List, Literal, Optional, Tuple
+from uuid import uuid4
 
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from .engine.data import Node, TimeMatrix
-from .schemas import OptimizeRequest, OptimizeResponse, RouteResult
-from .settings import settings
-from .engine.data import load_nodes_csv, load_time_matrix_csv
-from .engine.construct import greedy_construct
-from .engine.evaluation import (
-    route_time_minutes,
-    load_profile_liters,
-    capacity_trace_and_violations,
-)
-from .engine.evaluation import (
-    makespan_minutes,  #  baru
-)
-from .engine.improve import improve_routes
-from .engine.alns import alns_optimize, ALNSConfig
-from .engine.utils import ensure_all_routes_capacity
-from .engine.utils import build_groups_from_expanded_ids
-from .engine.utils import ensure_groups_single_vehicle
-
-from .routers import (
-    routes_groups,
-    routes_catalog,
-    routes_assign,
-    routes_status,
-    routes_history,
-)
-
-from uuid import uuid4
-from datetime import datetime, timezone
-from .database import SessionLocal
-from .models import JobVehicleRun, JobStepStatus
-import logging
-import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FTimeout
-import numpy as np
-
 # --- tambahkan di app.py (atau bikin router terpisah) ---
 from pydantic import BaseModel
-from typing import Optional, Literal
 
+from .database import SessionLocal
+from .engine.alns import ALNSConfig, alns_optimize
+from .engine.construct import greedy_construct
+from .engine.data import Node, TimeMatrix, load_nodes_csv, load_time_matrix_csv
+from .engine.evaluation import (
+    capacity_trace_and_violations,
+    load_profile_liters,
+    makespan_minutes,  #  baru
+    route_time_minutes,
+)
+from .engine.improve import improve_routes
+from .engine.utils import (
+    build_groups_from_expanded_ids,
+    ensure_all_routes_capacity,
+    ensure_groups_single_vehicle,
+)
+from .models import JobStepStatus, JobVehicleRun
+from .routers import (
+    routes_assign,
+    routes_catalog,
+    routes_groups,
+    routes_history,
+    routes_status,
+)
+from .schemas import OptimizeRequest, OptimizeResponse, RouteResult
+from .settings import settings
 
 app = FastAPI(
     title="Meta-VRP API",

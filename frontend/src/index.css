@@ -4,7 +4,7 @@
 
 /* 1. SEMUA IMPORT HARUS DI PALING ATAS (Standard CSS Rule) */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap');
-@import "leaflet/dist/leaflet.css";
+@import 'leaflet/dist/leaflet.css';
 
 /* 2. Direktif Tailwind */
 @tailwind base;
@@ -34,7 +34,7 @@
     --input: 140 15% 90%;
     --ring: 142 71% 35%;
     --radius: 0.75rem;
-    --font-sans: "Inter", sans-serif;
+    --font-sans: 'Inter', sans-serif;
 
     /* Custom design tokens */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
@@ -81,7 +81,7 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
   /* Focus ring improvements */
@@ -108,8 +108,12 @@
     box-shadow: var(--shadow-md);
   }
 
-  .card-h { @apply px-5 py-4 border-b text-sm font-semibold; }
-  .card-b { @apply p-5; }
+  .card-h {
+    @apply px-5 py-4 border-b text-sm font-semibold;
+  }
+  .card-b {
+    @apply p-5;
+  }
 
   .btn {
     @apply inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold;

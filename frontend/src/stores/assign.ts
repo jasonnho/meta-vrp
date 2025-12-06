@@ -1,47 +1,47 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 
 type PerRVSelection = Record<
   string, // routeVehicleId as string
   { operatorId?: string; vehicleId?: string; status?: string }
->;
+>
 
-type NewOp = { name: string; phone: string; active: boolean };
-type NewVeh = { plate: string; capacityL: number; active: boolean };
+type NewOp = { name: string; phone: string; active: boolean }
+type NewVeh = { plate: string; capacityL: number; active: boolean }
 
 type AssignUIState = {
-  selectedJobId: string;
-  perRV: PerRVSelection;
+  selectedJobId: string
+  perRV: PerRVSelection
 
-  showAddOp: boolean;
-  newOp: NewOp;
+  showAddOp: boolean
+  newOp: NewOp
 
-  showAddVeh: boolean;
-  newVeh: NewVeh;
+  showAddVeh: boolean
+  newVeh: NewVeh
 
   // setters
-  setSelectedJobId: (id: string) => void;
-  setPerRV: (updater: (s: PerRVSelection) => PerRVSelection) => void;
-  clearPerRV: () => void;
+  setSelectedJobId: (id: string) => void
+  setPerRV: (updater: (s: PerRVSelection) => PerRVSelection) => void
+  clearPerRV: () => void
 
-  setShowAddOp: (v: boolean) => void;
-  setNewOp: (updater: (s: NewOp) => NewOp) => void;
+  setShowAddOp: (v: boolean) => void
+  setNewOp: (updater: (s: NewOp) => NewOp) => void
 
-  setShowAddVeh: (v: boolean) => void;
-  setNewVeh: (updater: (s: NewVeh) => NewVeh) => void;
-};
+  setShowAddVeh: (v: boolean) => void
+  setNewVeh: (updater: (s: NewVeh) => NewVeh) => void
+}
 
 export const useAssignUI = create<AssignUIState>()(
   persist(
     (set) => ({
-      selectedJobId: "",
+      selectedJobId: '',
       perRV: {},
 
       showAddOp: false,
-      newOp: { name: "", phone: "", active: true },
+      newOp: { name: '', phone: '', active: true },
 
       showAddVeh: false,
-      newVeh: { plate: "", capacityL: 0, active: true },
+      newVeh: { plate: '', capacityL: 0, active: true },
 
       setSelectedJobId: (id) => set({ selectedJobId: id }),
       setPerRV: (updater) => set((s) => ({ perRV: updater(s.perRV) })),
@@ -54,9 +54,9 @@ export const useAssignUI = create<AssignUIState>()(
       setNewVeh: (updater) => set((s) => ({ newVeh: updater(s.newVeh) })),
     }),
     {
-      name: "meta-vrp-assign-ui",
+      name: 'meta-vrp-assign-ui',
       storage: createJSONStorage(() => localStorage),
       version: 1,
-    }
-  )
-);
+    },
+  ),
+)

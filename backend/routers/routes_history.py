@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
 from datetime import datetime
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import desc, func
+from sqlalchemy.orm import Session
+
 from ..database import get_db
-from ..models import JobVehicleRun, JobStepStatus
+from ..models import JobStepStatus, JobVehicleRun
 
 router = APIRouter(prefix="/jobs", tags=["history"])
 

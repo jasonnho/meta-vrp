@@ -1,12 +1,13 @@
 # utils.py
 from __future__ import annotations
-import random
+
 import hashlib
-from collections import deque
-from typing import Iterable, List, Any
 import math
+import random
+from collections import deque
+from typing import Any, Dict, Iterable, List, Tuple
+
 from .data import Node, TimeMatrix
-from typing import Dict, Tuple
 
 
 def set_seed(seed: int) -> None:

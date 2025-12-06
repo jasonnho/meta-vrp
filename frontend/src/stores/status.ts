@@ -1,25 +1,25 @@
 // src/stores/status.ts
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 
-type PerVehiclePick = Record<string, { status?: string }>;
-type PerStepPick    = Record<string, { status?: string; reason?: string }>;
+type PerVehiclePick = Record<string, { status?: string }>
+type PerStepPick = Record<string, { status?: string; reason?: string }>
 
 type StatusUI = {
-  selectedJobId: string;
-  perVeh: PerVehiclePick;
-  perStep: PerStepPick;
+  selectedJobId: string
+  perVeh: PerVehiclePick
+  perStep: PerStepPick
 
-  setSelectedJobId: (id: string) => void;
-  setPerVeh: (updater: (s: PerVehiclePick) => PerVehiclePick) => void;
-  setPerStep: (updater: (s: PerStepPick) => PerStepPick) => void;
-  clearPicks: () => void;
-};
+  setSelectedJobId: (id: string) => void
+  setPerVeh: (updater: (s: PerVehiclePick) => PerVehiclePick) => void
+  setPerStep: (updater: (s: PerStepPick) => PerStepPick) => void
+  clearPicks: () => void
+}
 
 export const useStatusUI = create<StatusUI>()(
   persist(
     (set, get) => ({
-      selectedJobId: "",
+      selectedJobId: '',
       perVeh: {},
       perStep: {},
 
@@ -29,9 +29,9 @@ export const useStatusUI = create<StatusUI>()(
       clearPicks: () => set({ perVeh: {}, perStep: {} }),
     }),
     {
-      name: "meta-vrp-status-ui",
+      name: 'meta-vrp-status-ui',
       storage: createJSONStorage(() => localStorage),
       version: 1,
-    }
-  )
-);
+    },
+  ),
+)

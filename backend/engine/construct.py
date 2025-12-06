@@ -1,4 +1,5 @@
 from typing import Dict, List, Set
+
 from .data import Node, TimeMatrix
 
 
