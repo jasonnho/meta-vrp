@@ -1,0 +1,42 @@
+repos:
+  # 1. Hooks Standar
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  # 2. Black (Backend Formatter)
+  - repo: https://github.com/psf/black
+    rev: 24.2.0
+    hooks:
+      - id: black
+        files: ^backend/
+
+  # 3. Ruff (Backend Linter)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
+    hooks:
+      - id: ruff
+        args: [ --fix ]
+        files: ^backend/
+
+  # 4. Prettier (Frontend Formatter)
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        files: ^frontend/.*\.(ts|tsx|js|jsx|css|json|md)$
+
+  # 5. ESLint (Frontend Linter) - Local Hook
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (frontend)
+        entry: npm run lint --prefix frontend
+        language: system
+        types: [javascript, jsx, ts, tsx]
+        files: ^frontend/
+        pass_filenames: false
