@@ -1,6 +1,6 @@
-# 🚛 Meta-VRP: Optimized City Park Watering System
+# 🚛 Armada Hijau: Website Optimasi Rute Mobil Penyiram Taman
 
-![CI Status](https://github.com/jasonnho/meta-vrp/actions/workflows/ci-quality.yml/badge.svg)
+[![CI Status](https://github.com/jasonnho/meta-vrp/actions/workflows/ci_quality.yml/badge.svg)](https://github.com/jasonnho/meta-vrp/actions/workflows/ci_quality.yml)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![React](https://img.shields.io/badge/React-18-cyan)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
