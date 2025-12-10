@@ -1,14 +1,12 @@
-import os
-from uuid import uuid4
-
-from sqlalchemy import TIMESTAMP, Boolean, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import String, Boolean, Text, Numeric, Integer, ForeignKey, TIMESTAMP
 
 # from sqlalchemy.dialects.sqlite import BLOB as SQLITE_UUID  # safe for SQLite
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-
+from uuid import uuid4
 from .database import Base
+import os
 
 
 # UUID column helper (works for SQLite & Postgres)
@@ -89,17 +87,17 @@ class Vehicle(Base):
 # Kita definisikan minimal ORM agar bisa PATCH assign/status.
 class JobVehicleRun(Base):
     __tablename__ = "vrp_job_vehicle_runs"
-    job_id: Mapped[str] = mapped_column(PG_UUID(as_uuid=False), primary_key=True)
+    job_id: Mapped[str] = mapped_column(String, primary_key=True)
     vehicle_id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
     route_total_time_min: Mapped[float | None] = mapped_column(Numeric)
     expected_finish_local = mapped_column(TIMESTAMP(timezone=False))
 
     assigned_vehicle_id: Mapped[str | None] = mapped_column(
-        PG_UUID(as_uuid=False), ForeignKey("vehicles.vehicle_id")
+        String, ForeignKey("vehicles.vehicle_id")
     )
     assigned_operator_id: Mapped[str | None] = mapped_column(
-        PG_UUID(as_uuid=False), ForeignKey("operators.operator_id")
+        String, ForeignKey("operators.operator_id")
     )
     status: Mapped[str] = mapped_column(String, nullable=False, default="planned")
     created_at = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
@@ -108,7 +106,7 @@ class JobVehicleRun(Base):
 # ================== Step status ==================
 class JobStepStatus(Base):
     __tablename__ = "vrp_job_step_status"
-    job_id: Mapped[str] = mapped_column(PG_UUID(as_uuid=False), primary_key=True)
+    job_id: Mapped[str] = mapped_column(String, primary_key=True)
     vehicle_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     sequence_index: Mapped[int] = mapped_column(Integer, primary_key=True)
 
