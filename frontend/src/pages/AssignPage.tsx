@@ -84,9 +84,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 type PerRVSelection = Record<string, { operatorId?: string; vehicleId?: string; status?: string }>
 
-// const STATUS_OPTIONS = ["planned", "in_progress", "done", "done_with_issues", "cancelled"] as const
-
-// ✨ motion: variants
 // ✨ motion: variants
 const fadeUp = {
   initial: { opacity: 0, y: 8 },
@@ -152,12 +149,11 @@ export default function AssignPage() {
     setNewVeh,
   } = useAssignUI()
 
-  // --- TAMBAHKAN STATE BARU ---
+  // --- State tambahan ---
   const [operatorSearch, setOperatorSearch] = useState('')
   const [vehicleSearch] = useState('')
   const [newOpError, setNewOpError] = useState('')
   const [newVehError, setNewVehError] = useState('')
-  // -----------------------------
 
   // ================== 1) Jobs dropdown ==================
   const {
@@ -171,11 +167,12 @@ export default function AssignPage() {
     gcTime: 10 * 60_000,
   })
 
-  const activeJobs = useMemo(() => {
-    return jobs.filter((j) => !['succeeded', 'failed', 'cancelled'].includes(j.status))
-  }, [jobs])
+  const activeJobs = useMemo(
+    () => jobs.filter((j) => !['succeeded', 'failed', 'cancelled'].includes(j.status)),
+    [jobs],
+  )
 
-  // Sinkronisasi selectedJobId <-> URL (?jobId=...) dan toggle add forms (?add=op|veh)
+  // Sinkronisasi selectedJobId <-> URL
   useEffect(() => {
     const j = sp.get('jobId') ?? ''
     const add = sp.get('add') ?? ''
@@ -184,6 +181,7 @@ export default function AssignPage() {
     if (add === 'veh') setShowAddVeh(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
   useEffect(() => {
     const next = new URLSearchParams(sp)
     if (selectedJobId) next.set('jobId', selectedJobId)
@@ -198,7 +196,7 @@ export default function AssignPage() {
 
   const selectedJobDetailFromList = useMemo(() => {
     if (!selectedJobId || jobs.length === 0) return null
-    return jobs.find((job) => job.job_id === selectedJobId)
+    return jobs.find((job) => job.job_id === selectedJobId) ?? null
   }, [selectedJobId, jobs])
 
   // ================== 2) Job detail (vehicles) ==================
@@ -224,6 +222,7 @@ export default function AssignPage() {
     queryFn: Api.listOperators,
     staleTime: 60_000,
   })
+
   const { data: vehicles = [], isFetching: fetchingVehicles } = useQuery<Vehicle[]>({
     queryKey: ['vehicles'],
     queryFn: Api.listVehicles,
@@ -278,14 +277,32 @@ export default function AssignPage() {
     mutationFn: (p: { id: string; patch: Partial<Pick<Operator, 'name' | 'phone' | 'active'>> }) =>
       Api.updateOperator(p.id, p.patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['operators'] }),
+    onError: (err: any) => {
+      toast({
+        title: 'Gagal mengubah operator',
+        description: err?.response?.data?.detail ?? err?.message ?? 'Unknown error',
+        variant: 'destructive',
+      })
+    },
   })
+
   const deleteOp = useMutation({
     mutationFn: Api.deleteOperator,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['operators'] })
       setDeletingOperator(null)
+      setOperatorSearch('') // reset filter biar list sync lagi
+      toast({ title: 'Operator dihapus' })
+    },
+    onError: (err: any) => {
+      toast({
+        title: 'Gagal menghapus operator',
+        description: err?.response?.data?.detail ?? err?.message ?? 'Unknown error',
+        variant: 'destructive',
+      })
     },
   })
+
   const createOp = useMutation({
     mutationFn: (p: { name: string; phone?: string; active?: boolean }) =>
       Api.createOperator({
@@ -313,14 +330,31 @@ export default function AssignPage() {
       patch: Partial<Pick<Vehicle, 'plate' | 'capacityL' | 'active'>>
     }) => Api.updateVehicle(p.id, p.patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['vehicles'] }),
+    onError: (err: any) => {
+      toast({
+        title: 'Gagal mengubah kendaraan',
+        description: err?.response?.data?.detail ?? err?.message ?? 'Unknown error',
+        variant: 'destructive',
+      })
+    },
   })
+
   const deleteVeh = useMutation({
     mutationFn: Api.deleteVehicle,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['vehicles'] })
       setDeletingVehicle(null)
+      toast({ title: 'Kendaraan dihapus' })
+    },
+    onError: (err: any) => {
+      toast({
+        title: 'Gagal menghapus kendaraan',
+        description: err?.response?.data?.detail ?? err?.message ?? 'Unknown error',
+        variant: 'destructive',
+      })
     },
   })
+
   const createVeh = useMutation({
     mutationFn: (p: { plate: string; capacityL: number; active?: boolean }) =>
       Api.createVehicle({
@@ -348,7 +382,6 @@ export default function AssignPage() {
   // ================== UI ==================
   return (
     <TooltipProvider>
-      {/* ✨ motion: page wrapper */}
       <motion.section className='space-y-6 p-1' {...fadeIn}>
         {/* ====== HEADER HALAMAN ====== */}
         <motion.div
@@ -377,7 +410,6 @@ export default function AssignPage() {
           </TabsList>
 
           {/* ================= TAB: PENUGASAN JOB ================= */}
-          {/* ✨ motion: AnimatePresence supaya konten tab smooth */}
           <AnimatePresence mode='wait'>
             <TabsContent value='assign' className='space-y-6 mt-4' asChild>
               <motion.div key='tab-assign' {...fadeUp}>
@@ -469,7 +501,6 @@ export default function AssignPage() {
                           : `(ID: ${selectedJobId.slice(0, 8)}...)`}
                       </motion.h3>
 
-                      {/* ✨ motion: container + stagger */}
                       <motion.div
                         className='grid md:grid-cols-2 lg:grid-cols-3 gap-4'
                         variants={staggerContainer}
@@ -489,17 +520,11 @@ export default function AssignPage() {
                           )
 
                           return (
-                            // ✨ motion: card item hover micro-interaction
                             <motion.div
                               key={rvKey}
                               variants={cardItem}
-                              whileHover={{
-                                y: -2,
-                              }}
-                              transition={{
-                                type: 'tween',
-                                duration: 0.18,
-                              }}
+                              whileHover={{ y: -2 }}
+                              transition={{ type: 'tween', duration: 0.18 }}
                             >
                               <Card className='overflow-hidden'>
                                 <CardHeader className='py-4'>
@@ -524,8 +549,7 @@ export default function AssignPage() {
                                           <div className='flex items-center gap-1.5'>
                                             <Truck className='h-3 w-3 flex-shrink-0' />
                                             <span>
-                                              <b>{assignedVeh.plate}</b> ({assignedVeh.capacityL}
-                                              L)
+                                              <b>{assignedVeh.plate}</b> ({assignedVeh.capacityL}L)
                                             </span>
                                           </div>
                                         )}
@@ -605,12 +629,7 @@ export default function AssignPage() {
                                   <Separator />
 
                                   <div className='flex gap-2'>
-                                    {/* ✨ motion: subtle press effect */}
-                                    <motion.div
-                                      whileTap={{
-                                        scale: 0.98,
-                                      }}
-                                    >
+                                    <motion.div whileTap={{ scale: 0.98 }}>
                                       <Button
                                         size='sm'
                                         disabled={!canAssign || assignMut.isPending}
@@ -634,11 +653,7 @@ export default function AssignPage() {
 
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <motion.div
-                                          whileTap={{
-                                            scale: 0.98,
-                                          }}
-                                        >
+                                        <motion.div whileTap={{ scale: 0.98 }}>
                                           <Button
                                             size='sm'
                                             variant='outline'
@@ -688,7 +703,6 @@ export default function AssignPage() {
                         Manajemen Operator
                       </div>
                     </AccordionTrigger>
-                    {/* ✨ motion: fade content on open */}
                     <AccordionContent asChild>
                       <motion.div {...fadeIn} className='pt-4 space-y-4'>
                         <div className='flex items-center justify-between gap-4'>
@@ -701,11 +715,7 @@ export default function AssignPage() {
                               onChange={(e) => setOperatorSearch(e.target.value)}
                             />
                           </div>
-                          <motion.div
-                            whileTap={{
-                              scale: 0.98,
-                            }}
-                          >
+                          <motion.div whileTap={{ scale: 0.98 }}>
                             <Button
                               variant='outline'
                               size='sm'
@@ -776,11 +786,7 @@ export default function AssignPage() {
                                     </Label>
                                   </div>
                                   <div className='flex gap-2'>
-                                    <motion.div
-                                      whileTap={{
-                                        scale: 0.98,
-                                      }}
-                                    >
+                                    <motion.div whileTap={{ scale: 0.98 }}>
                                       <Button
                                         disabled={!newOp.name.trim() || createOp.isPending}
                                         onClick={() => {
@@ -803,11 +809,7 @@ export default function AssignPage() {
                                         )}
                                       </Button>
                                     </motion.div>
-                                    <motion.div
-                                      whileTap={{
-                                        scale: 0.98,
-                                      }}
-                                    >
+                                    <motion.div whileTap={{ scale: 0.98 }}>
                                       <Button
                                         variant='outline'
                                         onClick={() => {
@@ -928,11 +930,7 @@ export default function AssignPage() {
                           <p className='text-sm text-muted-foreground'>
                             Kelola data master kendaraan (mobil penyiram).
                           </p>
-                          <motion.div
-                            whileTap={{
-                              scale: 0.98,
-                            }}
-                          >
+                          <motion.div whileTap={{ scale: 0.98 }}>
                             <Button
                               variant='outline'
                               size='sm'
@@ -1014,11 +1012,7 @@ export default function AssignPage() {
                                     </Label>
                                   </div>
                                   <div className='flex gap-2'>
-                                    <motion.div
-                                      whileTap={{
-                                        scale: 0.98,
-                                      }}
-                                    >
+                                    <motion.div whileTap={{ scale: 0.98 }}>
                                       <Button
                                         disabled={
                                           !newVeh.plate.trim() ||
@@ -1049,11 +1043,7 @@ export default function AssignPage() {
                                         )}
                                       </Button>
                                     </motion.div>
-                                    <motion.div
-                                      whileTap={{
-                                        scale: 0.98,
-                                      }}
-                                    >
+                                    <motion.div whileTap={{ scale: 0.98 }}>
                                       <Button
                                         variant='outline'
                                         onClick={() => {
@@ -1103,7 +1093,7 @@ export default function AssignPage() {
                                   </TableCell>
                                 </tr>
                               )}
-                              {(filteredVehicles.length ? filteredVehicles : vehicles).map((v) => (
+                              {filteredVehicles.map((v) => (
                                 <TableRow key={v.id}>
                                   <TableCell className='font-medium'>{v.plate}</TableCell>
                                   <TableCell>{v.capacityL} L</TableCell>

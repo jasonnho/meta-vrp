@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Api } from '../lib/api'
-import type { HistoryItem, JobDetail, JobStatus } from '../types'
+import type { HistoryItem, JobDetail, JobStatus, Operator, Vehicle } from '../types'
 import StatusBadge from '../components/StatusBadge'
 import { minutesToHHMM } from '../lib/format'
 import { useLogsUI } from '../stores/logs'
@@ -770,6 +770,18 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
   const vehicles = detail.vehicles ?? []
   const routes = detail.routes ?? []
 
+  // 🔥 ambil katalog sama seperti di AssignPage
+  const { data: operatorsCatalog = [] } = useQuery<Operator[]>({
+    queryKey: ['operators'],
+    queryFn: Api.listOperators,
+    staleTime: 60_000,
+  })
+  const { data: vehiclesCatalog = [] } = useQuery({
+    queryKey: ['vehicles'],
+    queryFn: Api.listVehicles,
+    staleTime: 60000,
+  })
+
   return (
     <Tabs defaultValue='summary' className='w-full'>
       {/* Tab Triggers */}
@@ -820,6 +832,7 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
       </TabsContent>
 
       {/* --- Tab 2: Kendaraan --- */}
+            {/* --- Tab 2: Kendaraan --- */}
       <TabsContent value='vehicles' className='space-y-4'>
         <AnimatePresence mode='wait'>
           {vehicles.length === 0 ? (
@@ -848,88 +861,73 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
                       <TableBody>
                         {vehicles.map((v, i) => {
                           const delay = i * 0.03
+
+                          // 🔎 join ke katalog
+                          const assignedVeh = vehiclesCatalog.find(
+                            (vv) =>
+                              String(vv.id) ===
+                              String((v as any).assigned_vehicle_id ?? (v as any).assignedVehicleId),
+                          )
+                          const assignedOp = operatorsCatalog.find(
+                            (oo) =>
+                              String(oo.id) ===
+                              String(
+                                (v as any).assigned_operator_id ??
+                                  (v as any).assignedOperatorId,
+                              ),
+                          )
+
                           return (
                             <TableRow key={`${v.vehicle_id}-${i}`}>
                               <TableCell className='font-medium'>
                                 <motion.div
-                                  initial={{
-                                    opacity: 0,
-                                    y: 4,
-                                  }}
-                                  animate={{
-                                    opacity: 1,
-                                    y: 0,
-                                  }}
-                                  transition={{
-                                    duration: 0.18,
-                                    delay,
-                                  }}
+                                  initial={{ opacity: 0, y: 4 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ duration: 0.18, delay }}
                                 >
                                   #{v.vehicle_id}
                                 </motion.div>
                               </TableCell>
+
+                              {/* 🔥 Nopol, ambil dari katalog */}
                               <TableCell>
                                 <motion.div
-                                  initial={{
-                                    opacity: 0,
-                                  }}
-                                  animate={{
-                                    opacity: 1,
-                                  }}
-                                  transition={{
-                                    duration: 0.18,
-                                    delay: delay + 0.01,
-                                  }}
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  transition={{ duration: 0.18, delay: delay + 0.01 }}
                                 >
-                                  {(v as any).plate ?? '—'}
+                                  {assignedVeh?.plate ?? '—'}
                                 </motion.div>
                               </TableCell>
+
+                              {/* 🔥 Operator, ambil dari katalog */}
                               <TableCell>
                                 <motion.div
-                                  initial={{
-                                    opacity: 0,
-                                  }}
-                                  animate={{
-                                    opacity: 1,
-                                  }}
-                                  transition={{
-                                    duration: 0.18,
-                                    delay: delay + 0.02,
-                                  }}
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  transition={{ duration: 0.18, delay: delay + 0.02 }}
                                 >
-                                  {(v as any).operator?.name ?? '—'}
+                                  {assignedOp?.name ?? '—'}
                                 </motion.div>
                               </TableCell>
+
                               <TableCell className='capitalize'>
                                 <motion.div
-                                  initial={{
-                                    opacity: 0,
-                                  }}
-                                  animate={{
-                                    opacity: 1,
-                                  }}
-                                  transition={{
-                                    duration: 0.18,
-                                    delay: delay + 0.03,
-                                  }}
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  transition={{ duration: 0.18, delay: delay + 0.03 }}
                                 >
                                   <StatusBadge
                                     status={((v as any).status ?? 'unknown') as JobStatus}
                                   />
                                 </motion.div>
                               </TableCell>
+
                               <TableCell>
                                 <motion.div
-                                  initial={{
-                                    opacity: 0,
-                                  }}
-                                  animate={{
-                                    opacity: 1,
-                                  }}
-                                  transition={{
-                                    duration: 0.18,
-                                    delay: delay + 0.04,
-                                  }}
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  transition={{ duration: 0.18, delay: delay + 0.04 }}
                                 >
                                   {typeof (v as any).route_total_time_min === 'number'
                                     ? `${(v as any).route_total_time_min} min (${minutesToHHMM(
@@ -950,6 +948,7 @@ function DetailsContent({ detail }: { detail: JobDetail }) {
           )}
         </AnimatePresence>
       </TabsContent>
+
 
       {/* --- Tab 3: Rute --- */}
       <TabsContent value='routes' className='space-y-4'>

@@ -206,7 +206,7 @@ export default function OptimizePage() {
         },
     });
 
-    const data: OptimizeResponse | undefined = optimizeData ?? lastResult;
+    const data: OptimizeResponse | undefined = lastResult;
 
     const clearAll = () => {
         setSelected(new Set());
@@ -283,6 +283,24 @@ export default function OptimizePage() {
         setVehicleRoutes({});
         setHighlightedVehicleId(null);
         resetOptimize();
+    };
+    const applyGroup = (group: Group) => {
+        if (!group.nodeIds || group.nodeIds.length === 0) {
+            toast({
+                title: "Group Kosong",
+                description: "Group ini tidak memiliki titik lokasi.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        const newSelection = new Set(group.nodeIds);
+        setSelected(newSelection);
+
+        toast({
+            title: "Group Diterapkan",
+            description: `Berhasil memilih ${newSelection.size} titik dari group "${group.name}".`,
+        });
     };
 
     // ============================================================
@@ -566,14 +584,14 @@ export default function OptimizePage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-screen pt-0">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-0">
                 {/* Kiri: Peta + Legend */}
                 <div
                     className="lg:col-span-7 flex flex-col gap-4 z-0"
                     ref={mapRef}
                 >
                     {/* Map Card */}
-                    <Card className="flex-1 flex flex-col">
+                    <Card className="flex flex-col">
                         <CardHeader className="flex-row items-center justify-between py-4">
                             <div className="flex items-center gap-3">
                                 <MapPin className="h-5 w-5 text-primary" />
@@ -602,41 +620,39 @@ export default function OptimizePage() {
                                 </div>
                             )}
                         </CardHeader>
-                        <CardContent className="pt-0 flex-1 flex flex-col">
-                            {isLoadingNodes && (
-                                <Alert className="mt-4">
-                                    <Loader2 className="animate-spin" />
-                                    <AlertTitle>Loading</AlertTitle>
-                                </Alert>
-                            )}
-                            {isErrorNodes && (
-                                <Alert variant="destructive" className="mt-4">
-                                    <AlertCircle className="h-4 w-4" />
-                                    <AlertTitle>Error</AlertTitle>
-                                </Alert>
-                            )}
-                            {nodes.length > 0 && (
-                                <div className="rounded-lg border overflow-hidden flex-1 min-h-0">
-                                    {data ? (
-                                        <OptimizeResultMap
-                                            nodes={nodes}
-                                            result={data}
-                                            vehicleRoutes={vehicleRoutes}
-                                            highlightedVehicleId={
-                                                highlightedVehicleId
-                                            }
-                                            showOnlyHighlighted={isExporting}
-                                        />
-                                    ) : (
-                                        <NodesMapSelector
-                                            nodes={nodesForMap}
-                                            selected={selected}
-                                            onToggle={toggle}
-                                        />
-                                    )}
-                                </div>
-                            )}
-                        </CardContent>
+                        <CardContent className="pt-0">
+        {isLoadingNodes && (
+            <Alert className="mt-4">
+                <Loader2 className="animate-spin" />
+                <AlertTitle>Loading</AlertTitle>
+            </Alert>
+        )}
+        {isErrorNodes && (
+            <Alert variant="destructive" className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+            </Alert>
+        )}
+        {nodes.length > 0 && (
+            <div className="rounded-lg border overflow-hidden h-[420px] lg:h-[540px]">
+                {data ? (
+                    <OptimizeResultMap
+                        nodes={nodes}
+                        result={data}
+                        vehicleRoutes={vehicleRoutes}
+                        highlightedVehicleId={highlightedVehicleId}
+                        showOnlyHighlighted={isExporting}
+                    />
+                ) : (
+                    <NodesMapSelector
+                        nodes={nodesForMap}
+                        selected={selected}
+                        onToggle={toggle}
+                    />
+                )}
+            </div>
+        )}
+    </CardContent>
                     </Card>
 
                     {/* Color Legend + Quick Stats - Compact Bar */}
@@ -719,10 +735,10 @@ export default function OptimizePage() {
                 </div>
 
                 {/* Kanan: Kontrol */}
-                <div className="lg:col-span-5 flex flex-col">
+                <div className="lg:col-span-5 flex flex-col min-h-0">
                     <Tabs
                         defaultValue="settings"
-                        className="w-full flex-1 flex flex-col"
+                        className="w-full flex-1 flex flex-col min-h-0"
                     >
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="settings">
@@ -737,7 +753,7 @@ export default function OptimizePage() {
 
                         <TabsContent
                             value="settings"
-                            className="flex-1 flex flex-col gap-4 mt-4 min-h-0"
+                            className="flex-1 flex flex-col gap-4 mt-4 min-h-0 data-[state=inactive]:hidden"
                         >
                             <Card>
                                 <CardHeader className="py-3">
@@ -1069,9 +1085,86 @@ export default function OptimizePage() {
                                 </motion.div>
                             )}
                         </TabsContent>
-                        <TabsContent value="groups">
-                            {/* ... Tab Groups ... */}
-                        </TabsContent>
+                        {/* --- TAB 2: GROUPS --- */}
+                        <TabsContent
+    value="groups"
+    className="flex-1 flex flex-col gap-4 mt-4 min-h-0 data-[state=inactive]:hidden"
+  >
+    <Card className="flex-1 flex flex-col">
+      <CardHeader>
+        <CardTitle className="text-base">Grup Tersimpan</CardTitle>
+        <CardDescription>
+          Terapkan grup untuk memilih sekumpulan titik dengan cepat.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-3 flex-1 flex flex-col">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Cari group…"
+            value={groupQuery}
+            onChange={(e) => setGroupQuery(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+
+        {groupsQ.isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground pt-4 justify-center">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading groups…
+          </div>
+        ) : groupsQ.isError ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Gagal Memuat Grup</AlertTitle>
+          </Alert>
+        ) : (groupsQ.data ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center pt-4">
+            Belum ada group.
+          </p>
+        ) : (
+          <ScrollArea className="flex-1 rounded-md border">
+            <div className="p-2">
+              {filteredGroups.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center p-4">
+                  Grup tidak ditemukan.
+                </p>
+              )}
+              {filteredGroups.map((g) => (
+                <li
+                  key={g.id}
+                  className="list-none py-2 px-3 flex items-center justify-between gap-3 rounded-md hover:bg-muted/50"
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{g.name}</div>
+                    <div className="text-xs text-muted-foreground flex gap-2">
+                      <span>{g.nodeIds?.length ?? 0} points</span>
+                      {g.description && (
+                        <>
+                          <span>·</span>
+                          <span className="truncate opacity-80">
+                            {g.description}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => applyGroup(g)}
+                  >
+                    Terapkan
+                  </Button>
+                </li>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+      </CardContent>
+    </Card>
+  </TabsContent>
                     </Tabs>
                 </div>
             </div>
@@ -1082,6 +1175,7 @@ export default function OptimizePage() {
                     <motion.div
                         initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
+                        className="mt-4"
                     >
                         <Card className="overflow-hidden" ref={tableRef}>
                             <CardHeader className="pb-4 border-b">
