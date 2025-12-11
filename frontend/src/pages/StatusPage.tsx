@@ -53,7 +53,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 // --------------------------------------------------
 
-const VEHICLE_STATUS = ['planned', 'in_progress', 'done', 'done_with_issues', 'cancelled'] as const
+const VEHICLE_STATUS = ['planned', 'in_progress', 'done', 'cancelled'] as const
 const STEP_STATUS = ['planned', 'visited', 'skipped', 'failed'] as const
 
 // ✨ motion: variants
@@ -208,15 +208,18 @@ export default function StatusPage() {
     },
   })
 
-  const calculateProgress = (steps: JobRouteStep[]): number => {
-    if (!steps || steps.length === 0) return 0
-    const completedStatuses = ['visited', 'skipped', 'failed']
-    const completedCount = steps.filter((s) =>
-      completedStatuses.includes((s.status ?? '') as string),
-    ).length
+  const calculateProgress = (steps: JobRouteStep[], vehicleStatus?: string): number => {
+  // Kalau kendaraan sudah "done", paksa 100%
+  if ((vehicleStatus ?? '').toLowerCase() === 'done') return 100
 
-    return Math.round((completedCount / steps.length) * 100)
-  }
+  if (!steps || steps.length === 0) return 0
+  const completedStatuses = ['visited', 'skipped', 'failed']
+  const completedCount = steps.filter((s) =>
+    completedStatuses.includes((s.status ?? '') as string),
+  ).length
+
+  return Math.round((completedCount / steps.length) * 100)
+}
 
   return (
     <TooltipProvider>
@@ -375,11 +378,15 @@ export default function StatusPage() {
                           const vid = String(v.vehicle_id)
                           const vehPick = perVeh[vid] ?? {}
                           const steps: JobRouteStep[] = Array.isArray(v.route)
-                            ? [...(v.route as JobRouteStep[])].sort(
-                                (a, b) => (a.sequence_index ?? 0) - (b.sequence_index ?? 0),
-                              )
-                            : []
-                          const vehicleProgress = calculateProgress(steps)
+  ? [...(v.route as JobRouteStep[])].sort(
+      (a, b) => (a.sequence_index ?? 0) - (b.sequence_index ?? 0),
+    )
+  : []
+
+const vehicleStatus = ((v as any).status ?? 'planned') as string
+
+const vehicleProgress = calculateProgress(steps, vehicleStatus)
+
 
                           return (
                             <motion.div key={vid} variants={listItem} layout>

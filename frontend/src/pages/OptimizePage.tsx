@@ -1188,10 +1188,10 @@ export default function OptimizePage() {
                                 <Table className="min-w-[960px]">
                                     <TableHeader>
                                         <TableRow className="bg-gradient-to-r from-primary/10 to-primary/5 hover:bg-gradient-to-r hover:from-primary/15 hover:to-primary/10 border-b-2 border-primary/20">
-                                            <TableHead className="w-[120px] font-semibold text-primary">
+                                            <TableHead className="w-[80px] font-semibold text-primary">
                                                 Mobil
                                             </TableHead>
-                                            <TableHead className="w-[150px] font-semibold text-primary">
+                                            <TableHead className="w-[190px] font-semibold text-primary">
                                                 Total Waktu
                                             </TableHead>
                                             <TableHead className="font-semibold text-primary">
@@ -1238,11 +1238,18 @@ export default function OptimizePage() {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="font-semibold py-3">
-                                                        <span className="inline-block px-2 py-1 bg-primary/10 text-primary rounded text-sm font-medium">
-                                                            {r.total_time_min}{" "}
-                                                            min
-                                                        </span>
-                                                    </TableCell>
+    {(() => {
+        const roundedMinutes = Math.round(r.total_time_min); // buang koma
+        const hhmm = minutesToHHMM(roundedMinutes);          // jadi HH:MM
+
+        return (
+            <span className="inline-block px-2 py-1 bg-primary/10 text-primary rounded text-sm font-medium">
+                {hhmm} ({roundedMinutes} menit)
+            </span>
+        );
+    })()}
+</TableCell>
+
                                                     <TableCell className="text-xs break-all">
                                                         {r.sequence.map(
                                                             (id, idx) => {
